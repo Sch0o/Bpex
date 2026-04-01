@@ -1,0 +1,33 @@
+# 编译生成的文件
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# Visual Studio 相关
+.vs/
+*.sln
+*.suo
+*.user
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.opensdf
+*.sdf
+
+# VS Code
+.vscode/
+
+# 临时文件
+*.tmp
+*.log
+*.pid
+
+# macOS
+.DS_Store
+
+# 项目设置（可选，根据需要）
+# 如果不希望上传项目设置，取消下面注释
+# Config/DefaultEditor.ini
+# Config/DefaultGame.ini
