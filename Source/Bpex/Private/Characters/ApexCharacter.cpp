@@ -12,6 +12,7 @@
 #include "Weapon/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Players/ShooterPlayerController.h"
+#include "Weapon/BulletManagerComponent.h"
 
 // Sets default values
 AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -21,6 +22,8 @@ AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Su
 	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	
+	BulletManagerComponent = CreateDefaultSubobject<UBulletManagerComponent>(TEXT("BulletManagerComponent"));
 
 	//允许角色下蹲
 	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
@@ -65,26 +68,26 @@ void AApexCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	// 画出胶囊体底部位置
-	FVector CapsuleBottom = GetCapsuleComponent()->GetComponentLocation() - FVector(
-		0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-	DrawDebugSphere(GetWorld(), CapsuleBottom, 5.f, 8,
-	                IsLocallyControlled() ? FColor::Green : FColor::Red,
-	                false, -1.f);
+	// FVector CapsuleBottom = GetCapsuleComponent()->GetComponentLocation() - FVector(
+	// 	0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	// DrawDebugSphere(GetWorld(), CapsuleBottom, 5.f, 8,
+	//                 IsLocallyControlled() ? FColor::Green : FColor::Red,
+	//                 false, -1.f);
 	// 画出Mesh脚底位置  
 	FVector MeshFeet = GetMesh()->GetComponentLocation();
-	DrawDebugSphere(GetWorld(), MeshFeet, 5.f, 8, FColor::Yellow, false, -1.f);
+	DrawDebugSphere(GetWorld(), MeshFeet, 5.f, 8, IsLocallyControlled() ? FColor::Green : FColor::Red, false, -1.f);
 	// 打印两者的Z差值
-	if (GetLocalRole() == ROLE_SimulatedProxy)
-	{
-		DrawDebugString(GetWorld(),
-		                GetActorLocation() + FVector(0, 0, 100),
-		                FString::Printf(TEXT("CapsuleBottom Z: %.1f\nMeshFeet Z: %.1f\nDiff: %.1f\nBaseOffset Z: %.1f"),
-		                                CapsuleBottom.Z,
-		                                MeshFeet.Z,
-		                                MeshFeet.Z - CapsuleBottom.Z,
-		                                GetBaseTranslationOffset().Z),
-		                nullptr, FColor::White, 0.f, false);
-	}
+	// if (GetLocalRole() == ROLE_SimulatedProxy)
+	// {
+	// 	DrawDebugString(GetWorld(),
+	// 	                GetActorLocation() + FVector(0, 0, 100),
+	// 	                FString::Printf(TEXT("CapsuleBottom Z: %.1f\nMeshFeet Z: %.1f\nDiff: %.1f\nBaseOffset Z: %.1f"),
+	// 	                                CapsuleBottom.Z,
+	// 	                                MeshFeet.Z,
+	// 	                                MeshFeet.Z - CapsuleBottom.Z,
+	// 	                                GetBaseTranslationOffset().Z),
+	// 	                nullptr, FColor::White, 0.f, false);
+	// }
 }
 
 // Called to bind functionality to input

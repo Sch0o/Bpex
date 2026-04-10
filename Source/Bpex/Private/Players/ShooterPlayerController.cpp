@@ -13,10 +13,48 @@
 #include "InventorySystem/Interact/InteractableInterface.h"
 #include "UI/BpexHUD.h"
 
+void AShooterPlayerController::ServerRequestServerTime_Implementation(float TimeOfClientRequest)
+{
+	float ServerCurrentTime = GetWorld()->GetTimeSeconds();
+	ClientReportServerTime(TimeOfClientRequest, ServerCurrentTime);
+}
+
+void AShooterPlayerController::ClientReportServerTime_Implementation(float TimeOfClientRequest,
+	float TimeServerReceivedClientRequest)
+{
+	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
+	float CurrentServerTime = TimeServerReceivedClientRequest + (RoundTripTime * 0.5f);
+	ClientServerDelta = CurrentServerTime - GetWorld()->GetTimeSeconds();
+}
+
+void AShooterPlayerController::CheckTimeSync(float DeltaTime)
+{
+	if (IsLocalController()&&!HasAuthority())
+	{
+		TimeSyncRunningTime+=DeltaTime;
+		if (TimeSyncRunningTime>TimeSyncFrequency||TimeSyncRunningTime==DeltaTime)
+		{
+			ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+			TimeSyncRunningTime = 0.f;
+		}
+	}
+}
+
 void AShooterPlayerController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TraceForItem();
+	CheckTimeSync(DeltaSeconds);
+	
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			1, 
+			0.0f, 
+			FColor::Cyan, 
+			FString::Printf(TEXT("ClientServerDelta: %f"), GetClientServerDeltaTime())
+		);
+	}
 }
 
 void AShooterPlayerController::BeginPlay()
@@ -101,6 +139,15 @@ void AShooterPlayerController::TryInitMVVM()
 			}
 		}
 	}
+}
+
+float AShooterPlayerController::GetServerTime() const
+{
+	if (HasAuthority())
+	{
+		return GetWorld()->GetTimeSeconds();
+	}
+	return GetWorld()->GetTimeSeconds() + ClientServerDelta;
 }
 
 void AShooterPlayerController::OnRep_PlayerState()

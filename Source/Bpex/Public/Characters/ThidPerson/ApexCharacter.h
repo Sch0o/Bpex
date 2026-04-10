@@ -6,6 +6,7 @@
 #include "ThirdPersonCharacter.h"
 #include "ApexCharacter.generated.h"
 
+class UBulletManagerComponent;
 class UBpexInputConfig;
 struct FGameplayTag;
 class UCombatComponent;
@@ -21,6 +22,8 @@ class BPEX_API AApexCharacter : public AThirdPersonCharacter
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;
+	
+	UBulletManagerComponent*BulletManagerComponent;
 
 public:
 	// Sets default values for this character's properties

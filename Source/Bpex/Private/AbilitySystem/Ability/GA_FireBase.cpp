@@ -8,11 +8,15 @@
 #include "Weapon/ShooterWeapon.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "GameplayCueManager.h"
+#include "AbilitySystem/BpexAttributeSet.h"
+#include "Weapon/BulletManagerComponent.h"
+#include "Weapon/BulletTypes.h"
 
 UGA_FireBase::UGA_FireBase()
-{
+{ 
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-
+	
 	// 网络预测
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 }
@@ -22,149 +26,139 @@ void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
                                    const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-	
-	if (!CommitAbilityCooldown(Handle, ActorInfo, ActivationInfo, false, nullptr))
+	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
-	
-	//仅仅查看，但不施加效果
-	if (!CheckCost(Handle, ActorInfo, nullptr))
+	if (!BulletConfig)
 	{
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		UE_LOG(LogTemp, Error, TEXT("BulletConfig is NULL"));
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
-	
-	AutoFireTick();
-	
-	GetWorld()->GetTimerManager().SetTimer(AutoFireTimerHandle,this,&UGA_FireBase::AutoFireTick,TimeBetweenShots,true);
+	CurrentSpreadAngle = 0.f;
+
+	if (IsLocallyControlled())
+	{
+		InitLocalAmmoCount();
+		AutoFireTick(); // 立即开第一枪
+		GetWorld()->GetTimerManager().SetTimer(
+			AutoFireTimerHandle, this,
+			&UGA_FireBase::AutoFireTick, TimeBetweenShots, true);
+	}
+}
+
+void UGA_FireBase::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+                              const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility,
+                              bool bWasCancelled)
+{
+	GetWorld()->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 void UGA_FireBase::AutoFireTick()
 {
-	if (!CheckCost(CurrentSpecHandle, CurrentActorInfo, nullptr))
+	if (!TryConsumeLocalAmmo())
 	{
-		GetWorld()->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+		UE_LOG(LogTemp,Warning,TEXT("UGA_FireBase::AutoFireTick:: out of ammo"));
 		K2_OnInputReleased();
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
 	}
-	CommitAbilityCost(CurrentSpecHandle,CurrentActorInfo,CurrentActivationInfo,nullptr);
-	
-	FGameplayCueParameters Params;
-	Params.Instigator = GetAvatarActorFromActorInfo();
+
+	FireSingleBullet();
+
 	if (FireCueTag.IsValid())
 	{
-		GetAbilitySystemComponentFromActorInfo()->ExecuteGameplayCue(FireCueTag, Params);
+		FGameplayCueParameters Params;
+		Params.Instigator = GetAvatarActorFromActorInfo();
+		UAbilitySystemGlobals::Get().GetGameplayCueManager()->HandleGameplayCue(
+			GetAvatarActorFromActorInfo(),
+			FireCueTag,
+			EGameplayCueEvent::Executed,
+			Params);
 	}
-	
-	PerformHitscan();
+
+	//累计散布
+	CurrentSpreadAngle = FMath::Min(
+		CurrentSpreadAngle + SpreadIncreasePerShot, MaxSpreadAngle);
 }
 
-void UGA_FireBase::PerformHitscan()
+void UGA_FireBase::FireSingleBullet()
 {
 	AActor* AvatarActor = GetAvatarActorFromActorInfo();
-	if (!AvatarActor || !HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
-	{
-		return;
-	}
-	UCombatComponent* CombatComponent = AvatarActor->FindComponentByClass<UCombatComponent>();
-	if (!CombatComponent)
-	{
-		return;
-	}
-	AShooterWeapon* Weapon = CombatComponent->GetCurrentWeapon();
-	if (!Weapon)return;
-
-	FVector TargetLocation = CombatComponent->GetWeaponTargetLocation();
-	FTransform SpawnTransform = Weapon->CalculateProjectileSpawnTransform(TargetLocation);
-
-	FVector TraceStart = SpawnTransform.GetLocation(); // 枪口位置
-	FVector Direction = (TargetLocation - TraceStart).GetSafeNormal();
-	FVector TraceEnd = TraceStart + (Direction * HitscanRange);
-
-	// 2. 设置射线检测参数
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(AvatarActor); // 忽略玩家自己
-	QueryParams.AddIgnoredActor(Weapon); // 忽略武器本身
-	QueryParams.bTraceComplex = true; // 使用复杂碰撞以获得更精确的命中（比如精准爆头）
-
-	// 3. 执行射线检测
-	FHitResult HitResult;
-	// 注意：ECC_Visibility 是默认通道，你可以根据项目设置换成专用的射击通道 (比如 ECC_GameTraceChannel1)
-	bool bHit = GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
-
-	// 【可选】Debug 射线：帮你直观看到子弹弹道
-	DrawDebugLine(GetWorld(), TraceStart, bHit ? HitResult.ImpactPoint : TraceEnd, FColor::Red, false, 2.0f);
-
-	// 4. 如果命中了，并且在服务器端（Server），则应用伤害
-	if (bHit && HasAuthority(&CurrentActivationInfo))
-	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor)
-		{
-			// 尝试获取受击者的 Ability System Component
-			UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
-
-			if (TargetASC && DamageEffectClass)
-			{
-				// 创建 Effect Context，并将 HitResult 放进去（这对后续读取受击部位、播放特效很有用）
-				FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->
-					MakeEffectContext();
-				EffectContext.AddInstigator(AvatarActor, AvatarActor);
-				EffectContext.AddHitResult(HitResult);
-
-				// 生成并应用伤害 Spec
-				FGameplayEffectSpecHandle DamageSpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(
-					DamageEffectClass, GetAbilityLevel(), EffectContext);
-				TargetASC->ApplyGameplayEffectSpecToSelf(*DamageSpecHandle.Data.Get());
-			}
-		}
-	}
-}
-
-void UGA_FireBase::SpawnProjectile()
-{
-	AActor* AvatarActor = GetAvatarActorFromActorInfo();
-	if (!AvatarActor || !HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
-	{
-		return;
-	}
-	UCombatComponent* CombatComponent = AvatarActor->FindComponentByClass<UCombatComponent>();
-	if (!CombatComponent)
-	{
-		return;
-	}
-
-	FVector TargetLocation = CombatComponent->GetWeaponTargetLocation();
-	AShooterWeapon* Weapon = CombatComponent->GetCurrentWeapon();
+	if (!AvatarActor) return;
+	//获取武器信息
+	UCombatComponent* CombatComp = AvatarActor->FindComponentByClass<UCombatComponent>();
+	if (!CombatComp) return;
+	AShooterWeapon* Weapon = CombatComp->GetCurrentWeapon();
 	if (!Weapon) return;
-	FTransform ProjectileTransform = Weapon->CalculateProjectileSpawnTransform(TargetLocation);
 
-	if (ProjectileTransform.IsValid() && ProjectileClass && HasAuthority(&CurrentActivationInfo))
+	FVector TargetLocation = CombatComp->GetWeaponTargetLocation();
+	FTransform MuzzleTransform = Weapon->CalculateProjectileSpawnTransform(TargetLocation);
+	FVector Origin = MuzzleTransform.GetLocation();
+	FVector BaseDirection = (TargetLocation - Origin).GetSafeNormal();
+
+	//应用散布
+	FVector FinalDirection = ApplySpread(BaseDirection);
+	FGameplayEffectSpecHandle DamageSpec;
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC && BulletConfig->DamageEffectClass)
 	{
-		FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
-		EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
-
-		FGameplayEffectSpecHandle DamageSpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(
-			DamageEffectClass, GetAbilityLevel(), EffectContext);
-
-		AShooterProjectile* Projectile = GetWorld()->SpawnActorDeferred<AShooterProjectile>(
-			ProjectileClass,
-			ProjectileTransform,
-			GetOwningActorFromActorInfo(),
-			Cast<APawn>(GetAvatarActorFromActorInfo()),
-			ESpawnActorCollisionHandlingMethod::AlwaysSpawn
-		);
-		if (Projectile)
-		{
-			Projectile->DamageEffectSpecHandle = DamageSpecHandle;
-			Projectile->FinishSpawning(ProjectileTransform);
-		}
+		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+		Context.AddInstigator(AvatarActor, AvatarActor);
+		DamageSpec = ASC->MakeOutgoingSpec(
+			BulletConfig->DamageEffectClass, GetAbilityLevel(), Context);
+	}
+	UBulletManagerComponent* BulletMgr = AvatarActor->FindComponentByClass<UBulletManagerComponent>();
+	if (BulletMgr)
+	{
+		BulletMgr->FireBullet(BulletConfig, Origin, FinalDirection, DamageSpec);
 	}
 }
 
+void UGA_FireBase::InitLocalAmmoCount()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC)
+	{
+		LocalAmmoCount = ASC->GetNumericAttribute(UBpexAttributeSet::GetClipAmmoAttribute());
+	}else
+	{
+		UE_LOG(LogTemp,Warning,TEXT("UGA_FireBase::InitLocalAmmoCount::ASC is null"));
+	}
+}
+
+bool UGA_FireBase::TryConsumeLocalAmmo()
+{
+	if (LocalAmmoCount <= 0)
+	{
+		return false;
+	}
+	LocalAmmoCount--;
+	return true;
+}
+
+FVector UGA_FireBase::ApplySpread(const FVector& BaseDirection) const
+{
+	if (CurrentSpreadAngle <= 0.f)
+	{
+		return BaseDirection;
+	}
+	// 在锥体内随机偏移
+	const float HalfAngleRad = FMath::DegreesToRadians(CurrentSpreadAngle * 0.5f);
+	// 均匀分布在锥体内
+	const float RandomAngle = FMath::FRandRange(0.f, 2.f * PI);
+	// 使用sqrt使分布均匀
+	const float RandomRadius = FMath::Sqrt(FMath::FRand()) * FMath::Tan(HalfAngleRad);
+	// 构建正交基
+	FVector Right, Up;
+	BaseDirection.FindBestAxisVectors(Right, Up);
+	return (BaseDirection +
+		Right * (FMath::Cos(RandomAngle) * RandomRadius) +
+		Up * (FMath::Sin(RandomAngle) * RandomRadius)).GetSafeNormal();
+}
 
 void UGA_FireBase::InputReleased(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
                                  const FGameplayAbilityActivationInfo ActivationInfo)

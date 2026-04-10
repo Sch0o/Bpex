@@ -87,12 +87,6 @@ FSavedMovePtr UBpexCharacterMovementComponent::FNetWorkPredictionData_Client_Bpe
 void UBpexCharacterMovementComponent::EnterSlide()
 {
 	UE_LOG(LogTemp,Warning,TEXT("Entering slide"));
-	 // FHitResult SurfaceHit = CurrentFloor.HitResult;
-	//  if (CurrentFloor.IsWalkableFloor())
-	//  {
-	//  	Velocity = FVector::VectorPlaneProject(Velocity, SurfaceHit.Normal);
-	//  }
-	// Velocity.Z -= 500.f;
 	Crouch();
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
 	SetMovementMode(MOVE_Custom, CMOVE_Slide);
@@ -227,20 +221,7 @@ void UBpexCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float D
 	 	}
 	 }
 	 Super::UpdateCharacterStateBeforeMovement(DeltaTime);
-	
-	// if (bSafe_WantsToSlide) bWantsToCrouch = true;
-	// else { bWantsToCrouch = false; if (IsSliding()) ExitSlide(); }
-	//
-	// // 【务必放在判断 EnterSlide 的前面！】让原生逻辑先把脚踩实！
-	// Super::UpdateCharacterStateBeforeMovement(DeltaTime); 
-	//
-	// if (bSafe_WantsToSlide && bWantsToCrouch)
-	// {
-	// 	if (MovementMode == MOVE_Walking && Velocity.Size2D() >= MinSlideSpeed)
-	// 	{
-	// 		EnterSlide(); // 在这里才切入 Custom 模式
-	// 	}
-	// }
+
 	
 }
 
@@ -356,74 +337,7 @@ void UBpexCharacterMovementComponent::PhysSlide(float deltaTime, int32 Iteration
        //Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / deltaTime;
        MaintainHorizontalGroundVelocity(); // 再次确保 Z 轴速度是干净的 0
     }
-
-	// FVector Gravity = FVector(0.f, 0.f, GetGravityZ());
-	// FVector SlopeAcceleration = FVector::VectorPlaneProject(Gravity, HitResult.Normal);
-
-	// Velocity += SlopeAcceleration * deltaTime * SlideGravityModifier;
-	// Velocity.Z += (Gravity.Z) * deltaTime;
-	// 摩擦力
-	//Velocity = Velocity - Velocity * SlideFriction * deltaTime;
-	// Acceleration = FVector::ZeroVector;
-	// CalcVelocity(deltaTime, SlideFriction, true, GetMaxBrakingDeceleration());
-	//
-	// FVector Adjusted = Velocity * deltaTime;
-	// FHitResult Hit(1.f);
-	// SafeMoveUpdatedComponent(Adjusted, CharacterOwner->GetActorRotation(), true, Hit);
-	//
-	// if (Hit.Time < 1.f)
-	// {
-	// 	HandleImpact(Hit, deltaTime, Adjusted);
-	// 	SlideAlongSurface(Adjusted, (1.f - Hit.Time), Hit.Normal, Hit, true);
-	// }
-	// if (UpdatedComponent)
-	// {
-	// 	FVector SnapStart = UpdatedComponent->GetComponentLocation();
-	// 	// 往下扫模的距离。建议 50~60 左右（相当于能容忍的最大台阶/下坡落差）
-	// 	float SnapDistance = 60.f; 
-	// 	FVector SnapEnd = SnapStart + FVector::DownVector * SnapDistance;
-	//
-	// 	FHitResult SnapHit;
-	// 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(SlideSnap), false, CharacterOwner);
-	//
-	// 	// 使用当前胶囊体的大小往下“压”一个形状，而不是用细线去Trace（细线容易漏过裂缝）
-	// 	bool bHitFloor = GetWorld()->SweepSingleByChannel(
-	// 		SnapHit, 
-	// 		SnapStart, 
-	// 		SnapEnd, 
-	// 		FQuat::Identity, 
-	// 		UpdatedComponent->GetCollisionObjectType(), // 角色当前的碰撞通道
-	// 		GetPawnCapsuleCollisionShape(SHRINK_None),  // 保持当前下蹲胶囊体尺寸
-	// 		QueryParams
-	// 	);
-	//
-	// 	// 如果扫到了地板，且地板是一个有效的阻挡，且当前不是卡在地板里（Distance > 0）
-	// 	if (bHitFloor && SnapHit.IsValidBlockingHit() && SnapHit.Distance > 0.f)
-	// 	{
-	// 		// 判断这个坡度是不是太陡了，防止吸附到悬崖壁上（可选，根据你的游戏需求）
-	// 		if (IsWalkable(SnapHit)) 
-	// 		{
-	// 			// 计算出恰好贴地的向下偏移量
-	// 			FVector SnapAdjustment = FVector(0.f, 0.f, -SnapHit.Distance);
-	// 			FHitResult MoveHit;
-	// 			
-	// 			// 强行把角色往下拉！因为用了 SafeMoveUpdatedComponent，绝对不会穿模
-	// 			SafeMoveUpdatedComponent(SnapAdjustment, CharacterOwner->GetActorRotation(), true, MoveHit);
-	// 		}
-	// 	}
-	// }
-	//
-	// FHitResult NewHitResult;
-	// if (!GetSlideSurface(NewHitResult) || Velocity.Size2D() < MinSlideSpeed)
-	// {
-	// 	UE_LOG(LogTemp, Warning, TEXT("不在地面 or 速度：%f 过小" ), Velocity.Size2D());
-	// 	ExitSlide();
-	// }
-	//
-	// if (!bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
-	// {
-	// 	Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / deltaTime;
-	// }
+	
 }
 
 bool UBpexCharacterMovementComponent::GetSlideSurface(FHitResult& HitResult) const
@@ -442,45 +356,6 @@ void UBpexCharacterMovementComponent::TickComponent(float DeltaTime, ELevelTick 
                                                     FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	
-	if (CharacterOwner)
-	{
-		// 1. 获取当前的网络身份，方便区分是谁打印的
-		FString RoleStr;
-		if (CharacterOwner->HasAuthority())
-		{
-			RoleStr = TEXT("[Server]");
-		}
-		else if (CharacterOwner->IsLocallyControlled())
-		{
-			RoleStr = TEXT("[Local Client]");
-		}
-		else
-		{
-			RoleStr = TEXT("[Simulated Proxy]");
-		}
-
-		// 2. 格式化速度字符串，包含 X, Y, Z 以及水平总速度(Size2D)
-		FString VelocityMsg = FString::Printf(TEXT("%s Vel X: %.1f | Y: %.1f | Z: %.1f || Speed2D: %.1f"), 
-			*RoleStr, 
-			Velocity.X, 
-			Velocity.Y, 
-			Velocity.Z, 
-			Velocity.Size2D());
-
-		// 3. 打印到屏幕上
-		if (GEngine)
-		{
-			// 参数解释：
-			// Key: 分配一个唯一的整型ID（比如根据Role给不同ID）。同一个ID的文本会实时覆写，而不会刷屏！
-			// TimeToDisplay: 0.0f 表示只显示一帧
-			// Color: 颜色
-			int32 MsgKey = CharacterOwner->HasAuthority() ? 100 : (CharacterOwner->IsLocallyControlled() ? 101 : 102);
-			FColor MsgColor = CharacterOwner->HasAuthority() ? FColor::Cyan : FColor::Green;
-        
-			GEngine->AddOnScreenDebugMessage(MsgKey, 0.0f, MsgColor, VelocityMsg);
-		}
-	}
 }
 
 float UBpexCharacterMovementComponent::GetMinSlideSpeed() const

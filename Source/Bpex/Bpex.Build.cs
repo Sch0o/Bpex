@@ -22,8 +22,8 @@ public class Bpex : ModuleRules
 			"GameplayAbilities", 
 			"GameplayTags",
 			"GameplayTasks",
-			"NetCore"
-			
+			"NetCore", 
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

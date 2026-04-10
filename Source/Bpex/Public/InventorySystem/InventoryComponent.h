@@ -103,6 +103,12 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category="Inventory")
 	bool SlotEmpty(int SlotIndex);
+	
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	int32 ConsumeItemByPriority(UInventoryItemData* ItemData, int32 AmountToConsume);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	int32 GetTotalItemCount(UInventoryItemData* ItemData) const;
 
 private:
 	void ConstructInventory();

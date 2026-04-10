@@ -13,6 +13,7 @@ UVM_InventoryMain::UVM_InventoryMain()
 
 void UVM_InventoryMain::InitializeViewModels(UInventoryComponent* InventoryComp)
 {
+	UE_LOG(LogTemp,Warning,TEXT("UVM_InventoryMain::InitializeViewModels"));
 	if (!InventoryComp) return;
 	TotalSlots = InventoryComp->Items().Num();
 
@@ -30,6 +31,7 @@ void UVM_InventoryMain::InitializeViewModels(UInventoryComponent* InventoryComp)
 
 void UVM_InventoryMain::RefreshInventoryData(UInventoryComponent* InventoryComp)
 {
+	UE_LOG(LogTemp,Warning,TEXT("UVM_InventoryMain::RefreshInventoryData"));
 	if (!InventoryComp || SlotViewModels.Num() == 0) return;
 	const TArray<FInventorySlot>& InventorySlotArray = InventoryComp->Items();
 	for (int32 i = 0; i < InventorySlotArray.Num(); i++)

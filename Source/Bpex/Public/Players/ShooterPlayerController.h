@@ -25,8 +25,25 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category="Shooter|Respawn")
 	TSubclassOf<AApexCharacter> CharacterClass;
-
-protected:
+	
+	
+	UFUNCTION(Server,Reliable)
+	void ServerRequestServerTime(float TimeOfClientRequest);
+	
+	UFUNCTION(Client, Reliable)
+	void ClientReportServerTime(float TimeOfClientRequest, float TimeServerReceivedClientRequest);
+	
+	//客户端本地时间与服务器时间的差值
+	float ClientServerDelta = 0.f;
+	
+	//同步频率
+	UPROPERTY(EditAnywhere,Category="TimeSync")
+	float TimeSyncFrequency = 5.f;
+	
+	float TimeSyncRunningTime = 0.f;
+	
+	//检查是否需要同步
+	void CheckTimeSync(float DeltaTime);
 	
 	virtual void Tick(float DeltaSeconds) override;
 	
@@ -56,4 +73,9 @@ public:
 	void Interact() const;
 	
 	void TryInitMVVM();
+	
+	UFUNCTION(BlueprintPure,Category="TimeSync")
+	float GetServerTime()const;
+	
+	float GetClientServerDeltaTime()const{return ClientServerDelta;}
 };

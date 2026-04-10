@@ -3,6 +3,7 @@
 
 #include "InventorySystem/InventoryComponent.h"
 
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "Blueprint/UserWidget.h"
@@ -158,7 +159,7 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 		if (SpawnedActor)
 		{
 			ABpexItemActor* DroppedItem = Cast<ABpexItemActor>(SpawnedActor);
-			DroppedItem->SetQuantity(1);
+			DroppedItem->SetQuantity(FMath::Min(ItemData->DefaultDropAmount,InventorySlots[SlotIndex].Quantity));
 
 			UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(DroppedItem->GetRootComponent());
 
@@ -177,13 +178,32 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 		}
 
 		FInventorySlot& ModifiedSlot = InventorySlots[SlotIndex];
-		ModifiedSlot.Quantity -= 1;
+		int32 DropAmount = FMath::Min(ItemData->DefaultDropAmount,ModifiedSlot.Quantity);
+		ModifiedSlot.Quantity -= DropAmount;
 		if (ModifiedSlot.Quantity <= 0)
 		{
 			ModifiedSlot.Quantity = 0;
 			ModifiedSlot.ItemInfo = nullptr;
 		}
 		SlotArray.MarkSlotDirty(ModifiedSlot);
+
+		if (ItemData->ModifyAttributeEffect)
+		{
+			UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
+			if (ASC)
+			{
+				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(
+					ItemData->ModifyAttributeEffect, 1.0f, Context);
+
+				if (SpecHandle.IsValid())
+				{
+					SpecHandle.Data.Get()->SetSetByCallerMagnitude(ItemData->MagnitudeTag,
+					                                               static_cast<float>(-DropAmount));
+					ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+				}
+			}
+		}
 	}
 }
 
@@ -262,12 +282,36 @@ bool UInventoryComponent::Server_RequestPickUpItem_Validate(ABpexItemActor* Item
 void UInventoryComponent::Server_RequestPickUpItem_Implementation(ABpexItemActor* ItemToPickUp)
 {
 	UInventoryItemData* ItemData = ItemToPickUp->GetItemData();
+	if (ItemData == nullptr)
+	{
+		UE_LOG(LogTemp,Warning,TEXT("UInventoryComponent::Server_RequestPickUpItem_Implementation::ItemData is null"));
+	}
 	//地上有多少
 	int32 QuantityOnGround = ItemToPickUp->GetQuantity();
 
 	//尝试放入背包
 	int32 OriginalQuantity = QuantityOnGround;
 	TryAddItem(ItemData, QuantityOnGround);
+
+	int32 AmountAdded = OriginalQuantity - QuantityOnGround;
+	if (AmountAdded > 0 && ItemData->ModifyAttributeEffect)
+	{
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
+		if (ASC)
+		{
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			Context.AddInstigator(GetOwner(), GetOwner());
+			FGameplayEffectSpecHandle SpecHandle = ASC->
+				MakeOutgoingSpec(ItemData->ModifyAttributeEffect, 1.0f, Context);
+
+			if (SpecHandle.IsValid())
+			{
+				// 传入增加的数量 (正数)
+				SpecHandle.Data.Get()->SetSetByCallerMagnitude(ItemData->MagnitudeTag, static_cast<float>(AmountAdded));
+				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+			}
+		}
+	}
 
 	//全部销毁
 	if (QuantityOnGround <= 0)
@@ -423,6 +467,65 @@ void UInventoryComponent::ConstructInventory()
 			InventoryMenu->SetVisibility(ESlateVisibility::Collapsed);
 		}
 	}
+}
+
+int32 UInventoryComponent::GetTotalItemCount(UInventoryItemData* ItemData) const
+{
+	if (!ItemData) return 0;
+	int32 Total = 0;
+	for (const FInventorySlot& Slot : Items())
+	{
+		if (Slot.ItemInfo && Slot.ItemInfo->ItemID == ItemData->ItemID)
+		{
+			Total += Slot.Quantity;
+		}
+	}
+	return Total;
+}
+int32 UInventoryComponent::ConsumeItemByPriority(UInventoryItemData* ItemData, int32 AmountToConsume)
+{
+	if (!GetOwner()->HasAuthority())
+	{
+		return AmountToConsume; // 客户端直接返回期望值，不动库存
+	}
+	
+	if (!ItemData || AmountToConsume <= 0) return 0;
+	//── Step 1: 收集所有含有该物品的格子索引 ──
+	TArray<int32> MatchingIndices;
+	for (int32 i = 0; i < Items().Num(); i++)
+	{
+		if (Items()[i].ItemInfo && Items()[i].ItemInfo->ItemID == ItemData->ItemID
+			&& Items()[i].Quantity > 0)
+		{
+			MatchingIndices.Add(i);
+		}
+	}
+	if (MatchingIndices.Num() == 0) return 0;
+	// ── Step 2: 按数量升序排序（少的优先扣） ──
+	MatchingIndices.Sort([this](const int32 A, const int32 B)
+	{
+		return Items()[A].Quantity < Items()[B].Quantity;
+	});
+	// ── Step 3: 依次从最少的格子开始扣 ──
+	int32 Remaining = AmountToConsume;
+	for (int32 SlotIndex : MatchingIndices)
+	{
+		if (Remaining <= 0) break;
+		FInventorySlot& Slot = Items()[SlotIndex];
+		int32 DeductAmount = FMath::Min(Slot.Quantity, Remaining);Slot.Quantity -= DeductAmount;
+		Remaining -= DeductAmount;
+		// 格子扣空了就清除物品信息
+		if (Slot.Quantity <= 0)
+		{
+			Slot.Quantity = 0;
+			Slot.ItemInfo = nullptr;
+		}
+		SlotArray.MarkSlotDirty(Slot);
+	}
+	int32 ActualConsumed = AmountToConsume - Remaining;
+	UE_LOG(LogTemp, Log, TEXT("ConsumeItemByPriority: Requested=%d, Consumed=%d, Item=%s"),
+		AmountToConsume, ActualConsumed, *ItemData->ItemID.ToString());
+	return ActualConsumed;
 }
 
 

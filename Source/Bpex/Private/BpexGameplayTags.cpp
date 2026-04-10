@@ -51,7 +51,8 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 	Get().Ability_Item_Syringe = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Ability.Item.Syringe"),FString("Ability for Using Syringe"));
 	
-	
+	Get().Data_Ammo_DropAmount = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Data.Ammo_DropAmount"),FString("Data Ammo DropAmount"));
 	
 	/*
 	* GameplayCue Tags

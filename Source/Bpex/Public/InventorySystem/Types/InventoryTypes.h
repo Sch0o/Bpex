@@ -27,6 +27,9 @@ class BPEX_API UInventoryItemData : public UPrimaryDataAsset
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
+	EItemType ItemType = EItemType::Ammo;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
 	FName ItemID;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
@@ -39,11 +42,11 @@ public:
 	int32 MaxStackSize = 1;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Consumable")
-	TSubclassOf<class UGameplayAbility> UseAbility;
-	
+	TSubclassOf<UGameplayAbility> UseAbility;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Consumable")
 	TSubclassOf<UGameplayEffect> ItemEffect;
-	
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS|Consumable")
 	FGameplayTag UseEventTag;
 
@@ -55,51 +58,59 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Sorting")
 	int SortPriority = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS")
+	TSubclassOf<UGameplayEffect> ModifyAttributeEffect;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS")
+	FGameplayTag MagnitudeTag;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS")
+	int32 DefaultDropAmount =1;
 };
 
 USTRUCT(Blueprintable)
-struct FInventorySlot:public FFastArraySerializerItem
+struct FInventorySlot : public FFastArraySerializerItem
 {
 	GENERATED_BODY()
-	FInventorySlot():ItemInfo(nullptr),Quantity(0){}
-	
+	FInventorySlot() : ItemInfo(nullptr), Quantity(0){}
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Inventory")
 	TObjectPtr<UInventoryItemData> ItemInfo;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Inventory", meta=(ClampMin=0))
 	int32 Quantity;
-	
+
 	//当这个元素在客户端被同步移除之前
 	void PreReplicatedRemove(const FInventorySlotArray& InArraySerializer);
 	//当这个元素在客户端被同步添加时
 	void PostReplicatedAdd(const FInventorySlotArray& InArraySerializer);
 	//当这个元素在客户端被同步改变时
 	void PostReplicatedChange(const FInventorySlotArray& InArraySerializer);
-	
 };
 
 USTRUCT(Blueprintable)
-struct FInventorySlotArray:public FFastArraySerializer
+struct FInventorySlotArray : public FFastArraySerializer
 {
 	GENERATED_USTRUCT_BODY()
-	
+
 	UPROPERTY()
 	TArray<FInventorySlot> Items;
-	
+
 	UPROPERTY(NotReplicated)
 	TObjectPtr<UInventoryComponent> OwnerComponent = nullptr;
-	
+
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
 	{
 		return FastArrayDeltaSerialize<FInventorySlot, FInventorySlotArray>(
 			Items, DeltaParms, *this);
 	}
-	
+
 	void MarkSlotDirty(FInventorySlot& Slot)
 	{
 		MarkItemDirty(Slot);
 	}
-	
+
 	void MarkAllDirty()
 	{
 		MarkArrayDirty();
@@ -107,7 +118,7 @@ struct FInventorySlotArray:public FFastArraySerializer
 };
 
 //让网络层将其识别为FastArray
-template<>
+template <>
 struct TStructOpsTypeTraits<FInventorySlotArray>
 	: public TStructOpsTypeTraitsBase2<FInventorySlotArray>
 {
@@ -116,7 +127,6 @@ struct TStructOpsTypeTraits<FInventorySlotArray>
 		WithNetDeltaSerializer = true,
 	};
 };
-
 
 
 USTRUCT(BlueprintType)
@@ -134,7 +144,6 @@ class BPEX_API UItemUseContext : public UObject
 	GENERATED_BODY()
 
 public:
-
 	UPROPERTY()
 	TObjectPtr<UInventoryItemData> ItemData;
 

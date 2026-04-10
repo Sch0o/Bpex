@@ -39,6 +39,8 @@ public:
 	FGameplayTag Item_UseDuration;
 	FGameplayTag Item_SlotIndex;
 	
+	FGameplayTag Data_Ammo_DropAmount;
+	
 	/*
 	 * weapon
 	 */
