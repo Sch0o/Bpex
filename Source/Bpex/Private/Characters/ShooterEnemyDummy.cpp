@@ -3,6 +3,7 @@
 #include "AbilitySystem/BpexAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "TimerManager.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 AShooterEnemyDummy::AShooterEnemyDummy()
 {
@@ -98,7 +99,7 @@ void AShooterEnemyDummy::HealthChanged(const FOnAttributeChangeData& Data)
 	                              NewHealth - OldHealth,
 	                              bIsDead ? TEXT("true") : TEXT("false"),
 	                              *UEnum::GetValueAsString(GetLocalRole()));
-	if (GEngine&&HasAuthority())
+	if (GEngine && HasAuthority())
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, Msg);
 	}
@@ -139,4 +140,9 @@ void AShooterEnemyDummy::Disappear()
 void AShooterEnemyDummy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+}
+
+void AShooterEnemyDummy::UpdateWalkSpeed(float NewWalkSpeed)
+{
+	GetCharacterMovement()->MaxWalkSpeed = NewWalkSpeed;
 }
