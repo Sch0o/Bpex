@@ -31,4 +31,6 @@ public:
 	void AddCharacterAbilities(const TArray<TSubclassOf<UGameplayAbility>>&Abilities);
 	
 	void DebugPrintTriggerMapping();
+	
+	bool GetCooldownRemainingForTag(FGameplayTagContainer CooldownTags, float& TimeRemaining, float& CooldownDuration);
 };

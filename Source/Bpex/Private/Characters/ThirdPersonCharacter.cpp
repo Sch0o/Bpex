@@ -9,6 +9,7 @@
 #include "InputActionValue.h"
 #include "AbilitySystem/BpexAbilitySystemComponent.h"
 #include "Input/BpexCharacterMovementComponent.h"
+#include "Components/BoxComponent.h"
 
 // Sets default values
 AThirdPersonCharacter::AThirdPersonCharacter(const FObjectInitializer& ObjectInitializer): Super(
@@ -39,13 +40,26 @@ AThirdPersonCharacter::AThirdPersonCharacter(const FObjectInitializer& ObjectIni
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // 把相机挂在弹簧臂的末端
 	FollowCamera->bUsePawnControlRotation = false;
 	
+	// ----------------- 4. 创建碰撞盒 -----------------
+	HitBox_Head       = CreateHitBox("HitBox_Head",       "head",       FVector(12, 12, 12), FVector(0, 0, 5));
+	HitBox_Neck       = CreateHitBox("HitBox_Neck",       "neck_01",    FVector(8,  8,  6));
+	HitBox_Chest      = CreateHitBox("HitBox_Chest",      "spine_05",   FVector(20, 28, 18));
+	HitBox_Abdomen    = CreateHitBox("HitBox_Abdomen",    "spine_01",   FVector(18, 25, 15));
+	HitBox_UpperArm_L = CreateHitBox("HitBox_UpperArm_L", "upperarm_l", FVector(15, 7,  7));
+	HitBox_LowerArm_L = CreateHitBox("HitBox_LowerArm_L", "lowerarm_l", FVector(14, 6,  6));
+	HitBox_UpperArm_R = CreateHitBox("HitBox_UpperArm_R", "upperarm_r", FVector(15, 7,  7));
+	HitBox_LowerArm_R = CreateHitBox("HitBox_LowerArm_R", "lowerarm_r", FVector(14, 6,  6));
+	HitBox_Thigh_L    = CreateHitBox("HitBox_Thigh_L",    "thigh_l",    FVector(8,  8,  22));
+	HitBox_Calf_L     = CreateHitBox("HitBox_Calf_L",     "calf_l",     FVector(7,  7,  20));
+	HitBox_Thigh_R    = CreateHitBox("HitBox_Thigh_R",    "thigh_r",    FVector(8,  8,  22));
+	HitBox_Calf_R     = CreateHitBox("HitBox_Calf_R",     "calf_r",     FVector(7,  7,  20));
 
 }
+
 
 UAbilitySystemComponent* AThirdPersonCharacter::GetAbilitySystemComponent() const
 {
 	return Cast<UBpexAbilitySystemComponent>(AbilitySystemComponent);
-	
 }
 
 UAttributeSet* AThirdPersonCharacter::CreateAttributeSet()
@@ -152,6 +166,25 @@ void AThirdPersonCharacter::DoJumpEnd()
 {
 	// pass StopJumping to the character
 	StopJumping();
+}
+
+UBoxComponent* AThirdPersonCharacter::CreateHitBox(FName CompName, FName BoneName, FVector Extent, FVector Offset)
+{
+	UBoxComponent* Box = CreateDefaultSubobject<UBoxComponent>(CompName);
+	// 设置大小
+	Box->SetBoxExtent(Extent);
+	// Attach到骨骼
+	Box->SetupAttachment(GetMesh(), BoneName);
+	// 设置相对偏移
+	Box->SetRelativeLocation(Offset);
+	// ===== 碰撞设置：不参与物理，仅用于延迟补偿 =====
+	Box->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Box->SetGenerateOverlapEvents(false);
+	Box->SetCanEverAffectNavigation(false);
+	// 编辑器中可见（线框显示）
+	Box->SetHiddenInGame(true);         // 游戏中隐藏
+	Box->bVisualizeComponent = true;     // 编辑器中显示线框
+	return Box;
 }
 
 

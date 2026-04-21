@@ -7,6 +7,7 @@
 #include "GameFramework/Character.h"
 #include "ThirdPersonCharacter.generated.h"
 
+class UBoxComponent;
 class UBpexCharacterMovementComponent;
 class UGameplayAbility;
 class UAbilitySystemComponent;
@@ -26,11 +27,36 @@ class BPEX_API AThirdPersonCharacter : public ACharacter, public IAbilitySystemI
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 
+	//碰撞盒
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Head;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Neck;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Chest;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Abdomen;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_UpperArm_L;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_LowerArm_L;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_UpperArm_R;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_LowerArm_R;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Thigh_L;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Calf_L;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Thigh_R;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HitBoxes", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* HitBox_Calf_R;
 
 public:
 	// Sets default values for this character's properties
 	AThirdPersonCharacter(const FObjectInitializer& ObjectInitializer);
-	
+
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	UAttributeSet* CreateAttributeSet();
 
@@ -79,12 +105,15 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-	
+
 	UBpexCharacterMovementComponent* GetBpexCharacterMovementComponent() const;
-	
+
 	UCameraComponent* GetCameraComponent() const;
 
 private:
 	UPROPERTY(EditAnywhere, Category="GAS|Abilities")
 	TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
+
+	UBoxComponent* CreateHitBox(FName CompName, FName BoneName, FVector Extent, FVector Offset = FVector::ZeroVector
+	);
 };

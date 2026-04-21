@@ -87,6 +87,9 @@ struct FActiveBullet
 
 	float OwnerHalfRTT = 0.f;
 	float ServerTime = 0.f;
+	float FireServerTime = 0.f;
+	
+	FVector StartVelocity = FVector::ZeroVector;
 };
 
 USTRUCT()
@@ -105,4 +108,23 @@ struct FFireParams
 
 	UPROPERTY()
 	uint32 BulletID = 0;
+};
+
+
+USTRUCT()
+struct FBulletHitReport
+{
+	GENERATED_BODY()
+	UPROPERTY()
+	uint32 BulletID = 0;
+	UPROPERTY()
+	TWeakObjectPtr<AActor> HitActor;
+	UPROPERTY();
+	FVector_NetQuantize StartLocation;
+	UPROPERTY()
+	FVector_NetQuantize StartVelocity;
+	UPROPERTY()
+	float FireServerTime = 0.f;
+	UPROPERTY()
+	FVector_NetQuantize ClientHitLocation;
 };

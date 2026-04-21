@@ -88,6 +88,8 @@ protected:
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaTime) override;
 	
 	virtual bool CanCrouchInCurrentState() const override;
+	
+	bool CanEnterSlide();
 
 	void PhysSlide(float deltaTime, int32 Iterations);
 

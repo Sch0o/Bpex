@@ -100,3 +100,43 @@ void UBpexAbilitySystemComponent::DebugPrintTriggerMapping()
 		}
 	}
 }
+
+bool UBpexAbilitySystemComponent::GetCooldownRemainingForTag(FGameplayTagContainer CooldownTags, float& TimeRemaining,
+	float& CooldownDuration)
+{
+	TimeRemaining = 0.f;
+	CooldownDuration = 0.f;
+
+	if (CooldownTags.Num() > 0)
+	{
+		// 构造一个查询器，查找包含任何指定 Tag 的 Gameplay Effect
+		FGameplayEffectQuery const Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(CooldownTags);
+        
+		// 获取符合条件的 GE 的剩余时间和总持续时间
+		TArray< TPair<float, float> > DurationAndTimeRemaining = GetActiveEffectsTimeRemainingAndDuration(Query);
+
+		if (DurationAndTimeRemaining.Num() > 0)
+		{
+			// 如果同一个 Tag 触发了多次冷却（或重叠），找出剩余时间最长的那一个
+			int32 BestIdx = 0;
+			float LongestTime = DurationAndTimeRemaining[0].Key;
+            
+			for (int32 Idx = 1; Idx < DurationAndTimeRemaining.Num(); ++Idx)
+			{
+				if (DurationAndTimeRemaining[Idx].Key > LongestTime)
+				{
+					LongestTime = DurationAndTimeRemaining[Idx].Key;
+					BestIdx = Idx;
+				}
+			}
+
+			// Key 是 TimeRemaining (剩余时间), Value 是 Duration (总时长)
+			TimeRemaining = DurationAndTimeRemaining[BestIdx].Key;
+			CooldownDuration = DurationAndTimeRemaining[BestIdx].Value;
+            
+			return true; // 成功找到冷却中
+		}
+	}
+	return false; // 当前没有该 Tag 的冷却
+}
+

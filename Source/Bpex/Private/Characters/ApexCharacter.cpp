@@ -10,7 +10,7 @@
 #include "Input/BpexCharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapon/CombatComponent.h"
-#include "Components/CapsuleComponent.h"
+#include "AbilitySystem/LegendAbilityComponent.h"
 #include "Players/ShooterPlayerController.h"
 #include "Weapon/BulletManagerComponent.h"
 
@@ -22,17 +22,27 @@ AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Su
 	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
-	
+
 	BulletManagerComponent = CreateDefaultSubobject<UBulletManagerComponent>(TEXT("BulletManagerComponent"));
+
+	LegendAbilityComponent = CreateDefaultSubobject<ULegendAbilityComponent>(TEXT("LegendAbilityComponent"));
 
 	//允许角色下蹲
 	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
 }
 
-// Called when the game starts or when spawned
 void AApexCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//授予传奇技能
+	if (HasAuthority() && LegendAbilityComponent)
+	{
+		if (LegendData)
+		{
+			LegendAbilityComponent->InitializeWithLegendData(LegendData);
+		}
+	}
 }
 
 void AApexCharacter::InitAbilityActorInfo()
@@ -44,8 +54,9 @@ void AApexCharacter::InitAbilityActorInfo()
 	AbilitySystemComponent = ShooterPlayerState->GetAbilitySystemComponent();
 	Cast<UBpexAbilitySystemComponent>(AbilitySystemComponent)->AbilityActorInfoSet();
 	AttributeSet = ShooterPlayerState->GetAttributeSet();
-
 	InitializePrimaryAttributes();
+
+	LegendAbilityComponent->InitAbilitySystem(AbilitySystemComponent);
 }
 
 void AApexCharacter::PossessedBy(AController* NewController)
@@ -61,6 +72,11 @@ void AApexCharacter::OnRep_PlayerState()
 	Super::OnRep_PlayerState();
 	//只在客户端执行
 	InitAbilityActorInfo();
+}
+
+void AApexCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
 }
 
 // Called every frame

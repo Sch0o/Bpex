@@ -22,10 +22,13 @@ public:
 
 	UAttributeSet* GetAttributeSet() const;
 
+	
 protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UAttributeSet> AttributeSet;
+	
+	
 };

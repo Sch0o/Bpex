@@ -6,6 +6,9 @@
 #include "ThirdPersonCharacter.h"
 #include "ApexCharacter.generated.h"
 
+class ULegendDataAsset;
+class ULegendAbilityComponent;
+class ULagCompensationComponent;
 class UBulletManagerComponent;
 class UBpexInputConfig;
 struct FGameplayTag;
@@ -23,14 +26,23 @@ class BPEX_API AApexCharacter : public AThirdPersonCharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;
 	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
 	UBulletManagerComponent*BulletManagerComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	ULagCompensationComponent* LagCompensationComponent;
+	
+	UPROPERTY(VisibleAnywhere,BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	ULegendAbilityComponent * LegendAbilityComponent;
 
 public:
-	// Sets default values for this character's properties
 	AApexCharacter(const FObjectInitializer& ObjectInitializer);
+	
+	//角色独有的技能
+	UPROPERTY(EditDefaultsOnly, Category = "Legend")
+	TObjectPtr<ULegendDataAsset> LegendData;
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
 	UPROPERTY(EditAnywhere, Category ="Input")
@@ -53,6 +65,8 @@ protected:
 	virtual void PossessedBy(AController* NewController) override;
 
 	virtual void OnRep_PlayerState() override;
+	
+	virtual void PostInitializeComponents() override;
 	
 	void DoInteract();
 	

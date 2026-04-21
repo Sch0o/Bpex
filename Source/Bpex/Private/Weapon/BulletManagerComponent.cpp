@@ -2,6 +2,8 @@
 
 
 #include "Weapon/BulletManagerComponent.h"
+
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "NiagaraFunctionLibrary.h"
@@ -39,6 +41,7 @@ void UBulletManagerComponent::TickComponent(float DeltaTime, ELevelTick TickType
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	//模拟本地子弹
 	for (FActiveBullet& Bullet : ActiveBullets)
 	{
 		if (!Bullet.bPendingKill)
@@ -46,6 +49,7 @@ void UBulletManagerComponent::TickComponent(float DeltaTime, ELevelTick TickType
 			SimulateBullet(Bullet, DeltaTime);
 		}
 	}
+	//清除废弃子弹
 	CleanupDeadBullets();
 }
 
@@ -53,7 +57,6 @@ void UBulletManagerComponent::TickComponent(float DeltaTime, ELevelTick TickType
 int32 UBulletManagerComponent::FireBullet(const UBulletDataAsset* Config, const FVector& Origin,
                                           const FVector& Direction, const FGameplayEffectSpecHandle& DamageSpec)
 {
-	
 	if (!IsValid(Config) || ActiveBullets.Num() >= MaxActiveBullets)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UBulletManagerComponent::FireBullet:: config is null or bullets num over max"));
@@ -66,47 +69,243 @@ int32 UBulletManagerComponent::FireBullet(const UBulletDataAsset* Config, const 
 	const bool bIsLocallyControlled =
 		OwnerPawn ? Cast<APawn>(GetOwner())->IsLocallyControlled() : false;
 
+	if (bIsServer && !bIsLocallyControlled) return 0;
+
 	//创建子弹实例
 	FActiveBullet NewBullet;
 	NewBullet.StartPosition = Origin;
 	NewBullet.Position = Origin;
 	NewBullet.Velocity = NormalDir * Config->Speed;
+	NewBullet.StartVelocity= NormalDir*Config->Speed;
 	NewBullet.Config = Config;
 	NewBullet.BulletID = BulletID;
-	NewBullet.bIsAuthority = bIsServer;
 	NewBullet.DamageSpecHandle = DamageSpec;
 	NewBullet.LifeRemaining = Config->MaxLifetime;
-	NewBullet.bIsLocalPrediction = !bIsServer && bIsLocallyControlled;
 	NewBullet.Instigator = GetOwner();
 	NewBullet.InstigatorASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+	NewBullet.bIsAuthority = bIsServer;
+	NewBullet.bIsLocalPrediction = (!bIsServer && bIsLocallyControlled);
+	// 记录开火时间
+	if (AShooterPlayerController* PC = Cast<AShooterPlayerController>(OwnerPawn->GetController()))
+	{
+		NewBullet.FireServerTime = PC->GetServerTime();
+	}
+	
 	ActiveBullets.Add(NewBullet);
 
+	//如果本地，播放子弹特效
 	if (bIsLocallyControlled)
 	{
 		SpawnTracer(ActiveBullets.Last());
 	}
 
-	if (!bIsServer && bIsLocallyControlled)
+	if (!bIsServer)
 	{
 		FFireParams Params;
 		Params.Origin = Origin;
 		Params.Direction = NormalDir;
 		Params.BulletID = BulletID;
+		Params.ServerTime = NewBullet.FireServerTime;
 
-		if (AShooterPlayerController* PC = Cast<AShooterPlayerController>(OwnerPawn->GetController()))
-		{
-			Params.ServerTime = PC->GetServerTime();
-		}
-
-		Server_FireBullet(Params, Config);
+		Server_NotifyFire(Params, Config);
 	}
-
-	//通知其它客户端显示弹道特效
-	if (bIsServer)
+	else
 	{
+		//通知其它客户端显示弹道特效
 		Multicast_SpawnTracerVFX(Origin, NormalDir, Config);
 	}
+
 	return BulletID;
+}
+
+void UBulletManagerComponent::Server_ReportHit_Implementation(
+	FBulletHitReport Report, const UBulletDataAsset* Config)
+{
+	if (!IsValid(Config) || !Report.HitActor.IsValid()) return;
+	const float HalfRTT = GetOwnerHalfRTT() * 2;
+	const float ClampedRewind = FMath::Min(HalfRTT, MaxCatchUpTime);
+	// ① 回溯目标HitBox
+	bool bRewound = false;
+	if (bEnableTargetRewind && LagCompSubsystem && ClampedRewind > KINDA_SMALL_NUMBER)
+	{
+		bRewound = LagCompSubsystem->RewindActor(
+			Report.HitActor.Get(), ClampedRewind);
+	}
+	// ② 在回溯状态下模拟弹道验证
+	FHitResult ValidatedHit;
+	const bool bValid = ServerValidateHit(Report, Config, ValidatedHit);
+	// ③ 立即恢复
+	if (bRewound && LagCompSubsystem)
+	{
+		LagCompSubsystem->RestoreActor(Report.HitActor.Get());
+	}
+	// ④ 处理结果
+	if (bValid)
+	{
+		ServerApplyDamage(Report, Config, ValidatedHit);
+	}
+}
+
+bool UBulletManagerComponent::ServerValidateHit(
+	const FBulletHitReport& Report,
+	const UBulletDataAsset* Config,
+	FHitResult& OutValidatedHit)
+{
+	if (!IsValid(Config))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ServerValidateHit: Invalid Config, BulletID=%u"),
+		       Report.BulletID);
+		return false;
+	}
+	// ── 0. 基础合法性检查 ──
+	// 起始速度方向必须合理
+	const FVector StartDir = Report.StartVelocity.GetSafeNormal();
+	if (StartDir.IsNearlyZero())
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: Zero velocity, BulletID=%u"),
+		       Report.BulletID);
+		return false;
+	}
+	// 起始速度大小不能偏离配置太多（允许5%误差，防浮点精度问题）
+	const float ReportedSpeed = Report.StartVelocity.Size();
+	const float ExpectedSpeed = Config->Speed;
+	if (FMath::Abs(ReportedSpeed - ExpectedSpeed) / ExpectedSpeed > 0.05f)
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: Speed mismatch (%.1f vs %.1f), BulletID=%u"),
+		       ReportedSpeed, ExpectedSpeed, Report.BulletID);
+		return false;
+	}
+	// 起始位置不能离拥有者太远
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		const float OriginDist =
+			FVector::Dist(Report.StartLocation, Owner->GetActorLocation());
+		if (OriginDist > MaxOriginDeviation)
+		{
+			UE_LOG(LogTemp, Warning,
+			       TEXT("ServerValidateHit: Origin too far (%.1f), BulletID=%u"),
+			       OriginDist, Report.BulletID);
+			return false;
+		}
+	}
+	// ── 1. 构建服务器模拟子弹 ──
+	FActiveBullet SimBullet;
+	SimBullet.StartPosition = Report.StartLocation;
+	SimBullet.Position = Report.StartLocation;
+	SimBullet.Velocity = Report.StartVelocity;
+	SimBullet.Config = Config;
+	SimBullet.LifeRemaining = Config->MaxLifetime;
+	SimBullet.DistanceTraveled = 0.f;
+	SimBullet.bPendingKill = false;
+	SimBullet.bIsAuthority = true; // 服务器权威模拟
+	SimBullet.bIsLocalPrediction = false;
+	SimBullet.Instigator = GetOwner(); // 碰撞忽略自身
+	// ── 2. 模拟弹道 ──
+	constexpr float SimFrequency = 60.f;
+	const float MaxSimTime = Config->MaxLifetime;
+	TArray<FVector> PathPositions;
+	FHitResult SimHit;
+	const bool bSimHit = PredictCustomProjectilePath(
+		SimBullet, MaxSimTime, SimFrequency, PathPositions, SimHit);
+	// ── 3. 没命中任何东西 ──
+	if (!bSimHit)
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: No hit found in simulation, BulletID=%u"),
+		       Report.BulletID);
+		return false;
+	}
+	// ── 4. 验证命中的是同一个Actor ──
+	AActor* SimHitActor = SimHit.GetActor();
+	AActor* ReportedHitActor = Report.HitActor.Get();
+	if (!SimHitActor || !ReportedHitActor)
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: Null actor, BulletID=%u"),
+		       Report.BulletID);
+		return false;
+	}
+	if (SimHitActor != ReportedHitActor)
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: Actor mismatch [Client=%s, Server=%s], BulletID=%u"),
+		       *ReportedHitActor->GetName(),
+		       *SimHitActor->GetName(),
+		       Report.BulletID);
+		return false;
+	}
+	// ── 5. 验证命中点容差 ──
+	const float HitDeviation =
+		FVector::Dist(SimHit.ImpactPoint, Report.ClientHitLocation);
+	if (HitDeviation > HitValidationTolerance)
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("ServerValidateHit: Hit point deviation too large "
+			       "(%.1f > %.1f), BulletID=%u"),
+		       HitDeviation, HitValidationTolerance, Report.BulletID);
+		return false;
+	}
+	// ── 6. 验证通过 ──
+	OutValidatedHit = SimHit;
+	UE_LOG(LogTemp, Log,
+	       TEXT("ServerValidateHit: PASSED [Actor=%s, Deviation=%.1f, "
+		       "SimSteps=%d], BulletID=%u"),
+	       *SimHitActor->GetName(),
+	       HitDeviation,
+	       PathPositions.Num(),
+	       Report.BulletID);
+	return true;
+}
+
+void UBulletManagerComponent::ServerApplyDamage(const FBulletHitReport& Report, const UBulletDataAsset* Config,
+                                                FHitResult ValidatedHit)
+{
+	AActor* HitActor = Report.HitActor.Get();
+	//基础性检测
+	if (!HitActor || !Config || !Config->DamageEffectClass)
+	{
+		return;
+	}
+	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(HitActor);
+	if (!TargetASC) return;
+	AActor* SourceActor = GetOwner();
+	UAbilitySystemComponent* SourceASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(SourceActor);
+	if (!SourceASC) return;
+
+	FGameplayEffectContextHandle EffectContext = SourceASC->MakeEffectContext();
+	EffectContext.AddInstigator(SourceActor, SourceActor);
+	EffectContext.AddHitResult(ValidatedHit);
+	FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(Config->DamageEffectClass, 1.0f, EffectContext);
+
+	if (SpecHandle.IsValid())
+	{
+		SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
+	}
+}
+
+bool UBulletManagerComponent::Server_ReportHit_Validate(FBulletHitReport Report, const UBulletDataAsset* Config)
+{
+	return true;
+}
+
+void UBulletManagerComponent::Server_NotifyFire_Implementation(FFireParams Params, const UBulletDataAsset* Config)
+{
+	UAbilitySystemComponent* ASC =
+		UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+
+	//扣除子弹
+	if (ASC && Config->AmmoCostEffectClass)
+	{
+		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+		FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(
+			Config->AmmoCostEffectClass, 1, Context);
+		ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
+	}
+	//广播弹道特效给其他客户端
+	Multicast_SpawnTracerVFX(Params.Origin, Params.Direction, Config);
 }
 
 void UBulletManagerComponent::Client_DrawServerTrajectory_Implementation(FVector ServerStart, FVector ServerEnd)
@@ -115,7 +314,7 @@ void UBulletManagerComponent::Client_DrawServerTrajectory_Implementation(FVector
 }
 
 bool UBulletManagerComponent::PerformBulletTrace(FActiveBullet& Bullet, const FVector& Start, const FVector& End,
-                                                 FHitResult& OutHit, float RewindToTime)
+                                                 FHitResult& OutHit, TEnumAsByte<ECollisionChannel> CollisionChannel)
 {
 	FCollisionQueryParams QueryParams;
 	QueryParams.bTraceComplex = true;
@@ -124,26 +323,6 @@ bool UBulletManagerComponent::PerformBulletTrace(FActiveBullet& Bullet, const FV
 	if (Bullet.Instigator.IsValid())
 	{
 		QueryParams.AddIgnoredActor(Bullet.Instigator.Get());
-	}
-	const bool bShouldRewind = Bullet.bIsAuthority && bEnableTargetRewind &&
-		LagCompSubsystem && RewindToTime > 0.f;
-
-	if (bShouldRewind)
-	{
-		if (Bullet.Config->CollisionRadius > 0.f)
-		{
-			return LagCompSubsystem->RewindSweep(OutHit, Start, End,
-			                                     FCollisionShape::MakeSphere(Bullet.Config->CollisionRadius),
-			                                     BulletTraceChannel, QueryParams,
-			                                     RewindToTime, Bullet.Instigator.Get());
-		}
-		else
-		{
-			return LagCompSubsystem->RewindLineTrace(
-				OutHit, Start, End,
-				BulletTraceChannel, QueryParams,
-				RewindToTime, Bullet.Instigator.Get());
-		}
 	}
 
 	if (!Bullet.bIsLocalPrediction && !Bullet.bIsAuthority)
@@ -154,124 +333,65 @@ bool UBulletManagerComponent::PerformBulletTrace(FActiveBullet& Bullet, const FV
 	if (Bullet.Config && Bullet.Config->CollisionRadius > 0.f)
 	{
 		return GetWorld()->SweepSingleByChannel(
-			OutHit, Start, End, FQuat::Identity, BulletTraceChannel,
+			OutHit, Start, End, FQuat::Identity, CollisionChannel,
 			FCollisionShape::MakeSphere(Bullet.Config->CollisionRadius), QueryParams);
 	}
 	else
 	{
 		return GetWorld()->LineTraceSingleByChannel(
-			OutHit, Start, End, BulletTraceChannel, QueryParams);
+			OutHit, Start, End, CollisionChannel, QueryParams);
 	}
 }
 
-void UBulletManagerComponent::FastForwardBullet(FActiveBullet& Bullet, float CatchUpTime)
-{
-	if (!IsValid(Bullet.Config) || CatchUpTime <= 0.f)return;
-	if (!LagCompSubsystem)return;
-	const float Gravity = GetWorldGravity() * Bullet.Config->GravityScale;
-	const float SubStepSize = 1.f / 60.f;
-	float RemainingTime = CatchUpTime;
-	float SimTime = Bullet.ServerTime;
-	while (RemainingTime > 0.f && !Bullet.bPendingKill)
-	{
-		const float StepDelta = FMath::Min(RemainingTime, SubStepSize);
-		const FVector OldPosition = Bullet.Position;
-
-		// 推进位置
-		Bullet.Velocity.Z -= Gravity * StepDelta;
-		Bullet.Position += Bullet.Velocity * StepDelta;
-
-		// 更新飞行状态
-		const float StepDist = FVector::Dist(OldPosition, Bullet.Position);
-		Bullet.DistanceTraveled += StepDist;
-		Bullet.LifeRemaining -= StepDelta;
-
-		if (Bullet.LifeRemaining <= 0.f || Bullet.DistanceTraveled >= Bullet.Config->MaxDistance)
-		{
-			Bullet.bPendingKill = true;
-			return;
-		}
-
-		FHitResult HitResult;
-
-		bool bHit = PerformBulletTrace(Bullet, OldPosition, Bullet.Position, HitResult, SimTime);
-
-		if (bHit)
-		{
-			Bullet.Position = HitResult.ImpactPoint;
-			ProcessHit(Bullet, HitResult);
-			Bullet.bPendingKill = true;
-			break;
-		}
-		//推进模拟时间
-		SimTime += StepDelta;
-		RemainingTime -= StepDelta;
-	}
-}
-
-
-void UBulletManagerComponent::SimulateBullet(FActiveBullet& Bullet, float DeltaTime)
+bool UBulletManagerComponent::UpdateBulletParams(FActiveBullet& Bullet, float DeltaTime)
 {
 	if (!IsValid(Bullet.Config))
 	{
-		return;
+		return false;
 	}
 	const FVector OldPosition = Bullet.Position;
 
 	//重力影响
 	const float Gravity = GetWorldGravity() * Bullet.Config->GravityScale;
-	Bullet.Position.Z -= Gravity * DeltaTime;
+	Bullet.Velocity.Z -= Gravity * DeltaTime;
 	Bullet.Position += Bullet.Velocity * DeltaTime;
 
-	//更新飞行距离
+	//更新飞行距离和生命周期
 	const float StepDistance = FVector::Dist(OldPosition, Bullet.Position);
 	Bullet.DistanceTraveled += StepDistance;
-	//更新生命周期
 	Bullet.LifeRemaining -= DeltaTime;
 	if (Bullet.LifeRemaining <= 0.0f || Bullet.DistanceTraveled >= Bullet.Config->MaxDistance)
 	{
 		Bullet.bPendingKill = true;
-		return;
+		return false;
 	}
+	return true;
+}
 
-	//碰撞检测
+void UBulletManagerComponent::SimulateBullet(FActiveBullet& Bullet, float DeltaTime)
+{
+	UE_LOG(LogTemp, Warning, TEXT("SimulateBullet"));
+
+	FVector OldPosition = Bullet.Position;
+
+	if (!UpdateBulletParams(Bullet, DeltaTime)) return;
+
 	FHitResult HitResult;
-	float RewindToTime = GetWorld()->GetTimeSeconds() - Bullet.OwnerHalfRTT;
-	bool bHit = PerformBulletTrace(Bullet, OldPosition, Bullet.Position, HitResult, RewindToTime);
+	bool bHit = PerformBulletTrace(Bullet, OldPosition, Bullet.Position, HitResult, BulletTraceChannel);
 
 	if (bHit)
 	{
-		ProcessHit(Bullet, HitResult);
+		UE_LOG(LogTemp, Warning, TEXT("SimulateBullet: bHit = true"));
+		ProcessLocalHit(Bullet, HitResult);
 		Bullet.bPendingKill = true;
 		return;
 	}
 	UpdateTracer(Bullet);
-
-	// if (Bullet.bIsAuthority)
-	// {
-	// 	// 2. 调用 RPC，把坐标通过网络塞给客户端
-	// 	Client_DrawServerTrajectory(OldPosition, Bullet.Position);
-	// }
-	//
-	// if (Bullet.bIsLocalPrediction)
-	// {
-	// 	// 专服不画（没视口也没意义）
-	// 	// PIE 中的伪专服也不画（避免混淆）
-	// 	if (GetNetMode() != NM_DedicatedServer)
-	// 	{
-	// 		APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	// 		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
-	// 		{
-	// 			FColor LineColor = Bullet.bIsAuthority ? FColor::Red : FColor::Yellow;
-	// 			DrawDebugLine(GetWorld(), OldPosition, Bullet.Position,
-	// 			              LineColor, false, 2.0f, 0, 0.5f);
-	// 		}
-	// 	}
-	// }
 }
 
-void UBulletManagerComponent::ProcessHit(FActiveBullet& Bullet, const FHitResult& HitResult)
+void UBulletManagerComponent::ProcessLocalHit(FActiveBullet& Bullet, const FHitResult& HitResult)
 {
+	UE_LOG(LogTemp, Warning, TEXT("ProcessLocalHit"));
 	//施加命中特效
 	if (Bullet.Config && Bullet.Config->ImpactEffect)
 	{
@@ -283,32 +403,44 @@ void UBulletManagerComponent::ProcessHit(FActiveBullet& Bullet, const FHitResult
 	//广播命中
 	OnBulletHit.Broadcast(HitResult, Bullet);
 
-	//伤害应用，只在服务器端
-	if (!Bullet.bIsAuthority)return;
+	const bool bIsLocallyOwned = Bullet.bIsLocalPrediction || Bullet.bIsAuthority;
+	if (!bIsLocallyOwned) return;
+
+	//只有命中了有ASC的Actor才需要报告伤害
 	AActor* HitActor = HitResult.GetActor();
 	if (!HitActor) return;
 	UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
 	if (!TargetASC) return;
-	if (Bullet.DamageSpecHandle.IsValid())
+
+	//构建命中报告
+	FBulletHitReport Report;
+	Report.BulletID = Bullet.BulletID;
+	Report.HitActor = HitActor;
+	Report.StartLocation = Bullet.StartPosition;
+	Report.StartVelocity     = Bullet.StartVelocity;
+	Report.ClientHitLocation = HitResult.ImpactPoint;
+
+	if (Bullet.bIsAuthority)
 	{
-		// 将碰撞信息注入 EffectContext（用于后续判断爆头等）
-		FGameplayEffectContextHandle Context = Bullet.DamageSpecHandle.Data->GetEffectContext();
-		Context.AddHitResult(HitResult);
-		TargetASC->ApplyGameplayEffectSpecToSelf(*Bullet.DamageSpecHandle.Data.Get());
-	}
-	else if (Bullet.InstigatorASC.IsValid() && Bullet.Config->DamageEffectClass)
-	{
-		// 备用路径：动态构建 Spec
-		FGameplayEffectContextHandle Context =
-			Bullet.InstigatorASC->MakeEffectContext();
-		Context.AddInstigator(Bullet.Instigator.Get(), Bullet.Instigator.Get());
-		Context.AddHitResult(HitResult);
-		FGameplayEffectSpecHandle Spec = Bullet.InstigatorASC->MakeOutgoingSpec(
-			Bullet.Config->DamageEffectClass, 1, Context);
-		if (Spec.IsValid())
+		UAbilitySystemComponent* SourceASC =
+			UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+		if (!SourceASC || !Bullet.DamageSpecHandle.IsValid())
 		{
-			TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+			UE_LOG(LogTemp, Warning, TEXT("ProcessLocalHit: Invalid SourceASC or DamageSpec"));
+			return;
 		}
+		// 把命中信息写入 Context
+		FGameplayEffectContextHandle Context =
+			Bullet.DamageSpecHandle.Data->GetEffectContext();
+		Context.AddHitResult(HitResult);
+		// ✅ 正确：SourceASC 对 TargetASC 施加效果
+		SourceASC->ApplyGameplayEffectSpecToTarget(*Bullet.DamageSpecHandle.Data.Get(), TargetASC);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ProcessLocalHit: call Server_ReportHit"));
+		// 远程客户端：发RPC给服务端
+		Server_ReportHit(Report, Bullet.Config);
 	}
 }
 
@@ -377,64 +509,7 @@ void UBulletManagerComponent::Multicast_SpawnTracerVFX_Implementation(FVector Or
 	SpawnTracer(ActiveBullets.Last());
 }
 
-void UBulletManagerComponent::Server_FireBullet_Implementation(FFireParams Params, const UBulletDataAsset* Config)
-{
-	//服务器创建权威子弹
-	FActiveBullet AuthoritativeBullet;
-	AuthoritativeBullet.Position = Params.Origin;
-	AuthoritativeBullet.StartPosition = Params.Origin;
-	AuthoritativeBullet.Velocity = Params.Direction * Config->Speed;
-	AuthoritativeBullet.Config = Config;
-	AuthoritativeBullet.LifeRemaining = Config->MaxLifetime;
-	AuthoritativeBullet.Instigator = GetOwner();
-	AuthoritativeBullet.BulletID = Params.BulletID;
-	AuthoritativeBullet.bIsAuthority = true;
-	AuthoritativeBullet.bIsLocalPrediction = false;
-	AuthoritativeBullet.OwnerHalfRTT = GetOwnerHalfRTT();
-	AuthoritativeBullet.ServerTime = Params.ServerTime;
-	
-
-	UAbilitySystemComponent* ASC =
-		UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
-
-	if (ASC && Config->AmmoCostEffectClass)
-	{
-		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-		FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(
-			Config->AmmoCostEffectClass, 1, Context);
-		ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
-	}
-	if (ASC && Config->DamageEffectClass)
-	{
-		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-		Context.AddInstigator(GetOwner(), GetOwner());
-		AuthoritativeBullet.DamageSpecHandle =
-			ASC->MakeOutgoingSpec(Config->DamageEffectClass, 1, Context);
-		AuthoritativeBullet.InstigatorASC = ASC;
-	}
-
-	const float ServerNow = GetWorld()->GetTimeSeconds();
-	float CatchUpTime = ServerNow - Params.ServerTime;
-	UE_LOG(LogTemp, Warning,TEXT("ServeNow %.4fs, Params.ServerTime %.4fs"),ServerNow,Params.ServerTime);
-	CatchUpTime = FMath::Clamp(CatchUpTime, 0.f, MaxCatchUpTime);
-	if (CatchUpTime > KINDA_SMALL_NUMBER)
-	{
-		FastForwardBullet(AuthoritativeBullet, CatchUpTime);
-		UE_LOG(LogTemp, Warning,
-		       TEXT("Bullet %d: FastForward %.1fms, HalfRTT %.1fms"),
-		       Params.BulletID,
-		       CatchUpTime * 1000.f,
-		       AuthoritativeBullet.OwnerHalfRTT * 1000.f);
-	}
-	if (!AuthoritativeBullet.bPendingKill)
-	{
-		ActiveBullets.Add(AuthoritativeBullet);
-	}
-
-	Multicast_SpawnTracerVFX(Params.Origin, Params.Direction, Config);
-}
-
-bool UBulletManagerComponent::Server_FireBullet_Validate(FFireParams Params, const UBulletDataAsset* Config)
+bool UBulletManagerComponent::Server_NotifyFire_Validate(FFireParams Params, const UBulletDataAsset* Config)
 {
 	if (!Config) return false;
 	//── 防作弊验证 ──
@@ -467,4 +542,54 @@ float UBulletManagerComponent::GetOwnerHalfRTT() const
 	if (!PC || !PC->PlayerState) return 0.f;
 	const float PingMs = FMath::Clamp(PC->PlayerState->ExactPing, 0, MaxPredictionPing);
 	return PingMs * 0.001f * 0.5f;
+}
+
+bool UBulletManagerComponent::PredictCustomProjectilePath(
+	const FActiveBullet& InitialBulletState,
+	float MaxSimulateTime,
+	float SimFrequency,
+	TArray<FVector>& OutPathPositions,
+	FHitResult& OutHit)
+{
+	OutPathPositions.Empty();
+
+	if (!IsValid(InitialBulletState.Config))
+	{
+		return false;
+	}
+
+	FActiveBullet SimBullet = InitialBulletState;
+
+	// 限制最小频率为1，防止除以0
+	float StepDeltaTime = 1.0f / FMath::Max(SimFrequency, 1.0f);
+	float AccumulatedTime = 0.0f;
+
+	// 记录起点
+	OutPathPositions.Add(SimBullet.Position);
+
+	bool bHit = false;
+
+	while (AccumulatedTime < MaxSimulateTime &&
+	   SimBullet.LifeRemaining > 0.0f &&
+	   SimBullet.DistanceTraveled < SimBullet.Config->MaxDistance)
+	{
+		const FVector OldPosition = SimBullet.Position;
+		if (!UpdateBulletParams(SimBullet, StepDeltaTime))
+		{
+			break;  // 子弹已超时/超距
+		}
+		bHit = PerformBulletTrace(SimBullet, OldPosition, SimBullet.Position, OutHit, BulletTraceChannel);
+		if (bHit)
+		{
+			OutPathPositions.Add(OutHit.Location);
+			break;
+		}
+		else
+		{
+			OutPathPositions.Add(SimBullet.Position);
+		}
+		AccumulatedTime += StepDeltaTime;  // ✅ 累加时间
+	}
+
+	return bHit;
 }

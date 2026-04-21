@@ -86,11 +86,11 @@ FSavedMovePtr UBpexCharacterMovementComponent::FNetWorkPredictionData_Client_Bpe
 
 void UBpexCharacterMovementComponent::EnterSlide()
 {
-	UE_LOG(LogTemp,Warning,TEXT("Entering slide"));
+	UE_LOG(LogTemp, Warning, TEXT("Entering slide"));
 	Crouch();
 	Velocity += Velocity.GetSafeNormal2D() * SlideEnterImpulse;
 	SetMovementMode(MOVE_Custom, CMOVE_Slide);
-	
+
 	if (ApexCharacterOwner->HasAuthority())
 	{
 		ApexCharacterOwner->bIsSliding = true;
@@ -99,8 +99,7 @@ void UBpexCharacterMovementComponent::EnterSlide()
 
 void UBpexCharacterMovementComponent::ExitSlide()
 {
-	SetMovementMode(MOVE_Walking);
-	
+	UnCrouch();
 	if (ApexCharacterOwner->HasAuthority())
 	{
 		ApexCharacterOwner->bIsSliding = false;
@@ -123,7 +122,7 @@ bool UBpexCharacterMovementComponent::IsSliding() const
 	{
 		return true;
 	}
-		return false;
+	return false;
 }
 
 FNetworkPredictionData_Client* UBpexCharacterMovementComponent::GetPredictionData_Client() const
@@ -205,25 +204,26 @@ void UBpexCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds, cons
 void UBpexCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaTime)
 {
 	//处理滑铲进入
-	 if (bSafe_WantsToSlide)
-	 {
-	 	bWantsToCrouch = true;
-	 	if (Velocity.Size2D()>=MinSlideSpeed&&MovementMode == MOVE_Walking)
-	 	{
-	 		EnterSlide();
-	 	}
-	 }else
-	 {
-	 	bWantsToCrouch = false;
-	 	if (IsSliding())
-	 	{
-	 		ExitSlide();
-	 	}
-	 }
-	 Super::UpdateCharacterStateBeforeMovement(DeltaTime);
-
-	
+	if (bSafe_WantsToSlide)
+	{
+		bWantsToCrouch = true;
+		if (CanEnterSlide())
+		{
+			EnterSlide();
+		}
+	}
+	else
+	{
+		bWantsToCrouch = false;
+		if (IsSliding())
+		{
+			SetMovementMode(MOVE_Walking);
+			ExitSlide();
+		}
+	}
+	Super::UpdateCharacterStateBeforeMovement(DeltaTime);
 }
+
 
 bool UBpexCharacterMovementComponent::CanCrouchInCurrentState() const
 {
@@ -234,110 +234,129 @@ bool UBpexCharacterMovementComponent::CanCrouchInCurrentState() const
 	return Super::CanCrouchInCurrentState();
 }
 
+bool UBpexCharacterMovementComponent::CanEnterSlide()
+{
+	if (!IsMovingOnGround()||IsFalling()||MovementMode != MOVE_Walking)
+	{
+		return false;
+	}
+	if (Velocity.Size2D() < MinSlideSpeed)
+	{
+		return false;
+	}
+	return true;
+}
+
 bool UBpexCharacterMovementComponent::IsMovingOnGround() const
 {
-	return Super::IsMovingOnGround()||IsSliding();
+	return Super::IsMovingOnGround() || IsSliding();
 }
 
 void UBpexCharacterMovementComponent::PhysSlide(float deltaTime, int32 Iterations)
 {
 	if (deltaTime < MIN_TICK_TIME) return;
 
-    // 获取当前的网络身份，方便看 Log 时区分是哪一端退出的
-    FString RoleStr = CharacterOwner && CharacterOwner->HasAuthority() ? TEXT("[Server]") : TEXT("[Client]");
+	// 获取当前的网络身份，方便看 Log 时区分是哪一端退出的
+	FString RoleStr = CharacterOwner && CharacterOwner->HasAuthority() ? TEXT("[Server]") : TEXT("[Client]");
 
-    FHitResult HitResult;
-    
-    // ==========================================
-    // 退出点 1：射线检测没有打到地面 (悬空了)
-    // ==========================================
-    if (!GetSlideSurface(HitResult))
-    {
-       UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 1：GetSlideSurface 失败，角色离开了地面！"), *RoleStr);
-       ExitSlide();
-       StartNewPhysics(deltaTime, Iterations + 1);
-       return;
-    }
+	FHitResult HitResult;
 
-    // ==========================================
-    // 退出点 2：速度衰减到了阈值以下
-    // ==========================================
-    if (Velocity.Size2D() < MinSlideSpeed)
-    {
-       UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 2：速度过低！当前速度: %.1f，最小要求: %.1f"), *RoleStr, Velocity.Size2D(), MinSlideSpeed);
-       ExitSlide();
-       StartNewPhysics(deltaTime, Iterations + 1);
-       return;
-    }
+	// ==========================================
+	// 退出点 1：射线检测没有打到地面 (悬空了)
+	// ==========================================
+	if (!GetSlideSurface(HitResult))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 1：GetSlideSurface 失败，角色离开了地面！"), *RoleStr);
+		SetMovementMode(MOVE_Falling);
+		ExitSlide();
+		StartNewPhysics(deltaTime, Iterations + 1);
+		return;
+	}
 
-    FVector OldLocation = UpdatedComponent->GetComponentLocation();
-    MaintainHorizontalGroundVelocity();
-    
-    if (CurrentFloor.bBlockingHit)
-    {
-       FVector SlopeForce = CurrentFloor.HitResult.Normal;
-       SlopeForce.Z = 0.f;
-       Velocity += SlopeForce * SlideGravityForce * SlideGravityModifier * deltaTime;
-    }
-    
-    Acceleration = FVector::ZeroVector;
-    CalcVelocity(deltaTime, SlideFriction, false, GetMaxBrakingDeceleration());
-    FVector MoveVelocity = Velocity;
-    FVector Delta = deltaTime * MoveVelocity;
-    
-    // ==========================================
-    // 退出点 3：本帧位移几乎为 0 (通常是撞到了墙或者死角卡住了)
-    // ==========================================
-    if (Delta.IsNearlyZero())
-    {
-       UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 3：Delta位移几乎为0，角色撞墙或完全停下！"), *RoleStr);
-       ExitSlide();
-       return;
-    }
-    
-    FStepDownResult StepDownResult;
-    MoveAlongFloor(MoveVelocity, deltaTime, &StepDownResult);
-    
-    // ==========================================
-    // 退出点 4：引擎原生判定进入了掉落状态
-    // ==========================================
-    if (IsFalling())
-    {
-       UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 4：原生 IsFalling() 判定悬空 (走出了悬崖边缘)！"), *RoleStr);
-       ExitSlide(); 
-       StartNewPhysics(deltaTime, Iterations + 1);
-       return;
-    }
-    
-    if (StepDownResult.bComputedFloor)
-    {
-       CurrentFloor = StepDownResult.FloorResult;
-    }
-    else
-    {
-       FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, Delta.IsNearlyZero(), NULL);
-    }
-    
-    // ==========================================
-    // 退出点 5：滑到了不可行走的表面 (比如非常陡峭的斜坡/墙根)
-    // ==========================================
-    if (CurrentFloor.IsWalkableFloor())
-    {
-       AdjustFloorHeight();
-       SetBase(CurrentFloor.HitResult.Component.Get(), CurrentFloor.HitResult.BoneName);
-    }
-    else
-    {
-       UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 5：地板变为不可行走 (IsWalkableFloor = false)！地板法线Z: %.2f"), *RoleStr, CurrentFloor.HitResult.Normal.Z);
-       ExitSlide();
-    }
-    
-    if (!bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
-    {
-       //Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / deltaTime;
-       MaintainHorizontalGroundVelocity(); // 再次确保 Z 轴速度是干净的 0
-    }
-	
+	// ==========================================
+	// 退出点 2：速度衰减到了阈值以下
+	// ==========================================
+	if (Velocity.Size2D() < MinSlideSpeed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 2：速度过低！当前速度: %.1f，最小要求: %.1f"), *RoleStr, Velocity.Size2D(),
+		       MinSlideSpeed);
+		SetMovementMode(MOVE_Walking);
+		ExitSlide();
+		StartNewPhysics(deltaTime, Iterations + 1);
+		return;
+	}
+
+	FVector OldLocation = UpdatedComponent->GetComponentLocation();
+	MaintainHorizontalGroundVelocity();
+
+	if (CurrentFloor.bBlockingHit)
+	{
+		FVector SlopeForce = CurrentFloor.HitResult.Normal;
+		SlopeForce.Z = 0.f;
+		Velocity += SlopeForce * SlideGravityForce * SlideGravityModifier * deltaTime;
+	}
+
+	Acceleration = FVector::ZeroVector;
+	CalcVelocity(deltaTime, SlideFriction, false, GetMaxBrakingDeceleration());
+	FVector MoveVelocity = Velocity;
+	FVector Delta = deltaTime * MoveVelocity;
+
+	// ==========================================
+	// 退出点 3：本帧位移几乎为 0 (通常是撞到了墙或者死角卡住了)
+	// ==========================================
+	if (Delta.IsNearlyZero())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 3：Delta位移几乎为0，角色撞墙或完全停下！"), *RoleStr);
+		SetMovementMode(MOVE_Walking);
+		ExitSlide();
+		return;
+	}
+
+	FStepDownResult StepDownResult;
+	MoveAlongFloor(MoveVelocity, deltaTime, &StepDownResult);
+
+	// ==========================================
+	// 退出点 4：引擎原生判定进入了掉落状态
+	// ==========================================
+	if (IsFalling())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 4：原生 IsFalling() 判定悬空 (走出了悬崖边缘)！"), *RoleStr);
+		SetMovementMode(MOVE_Falling);
+		ExitSlide();
+		StartNewPhysics(deltaTime, Iterations + 1);
+		return;
+	}
+
+	if (StepDownResult.bComputedFloor)
+	{
+		CurrentFloor = StepDownResult.FloorResult;
+	}
+	else
+	{
+		FindFloor(UpdatedComponent->GetComponentLocation(), CurrentFloor, Delta.IsNearlyZero(), NULL);
+	}
+
+	// ==========================================
+	// 退出点 5：滑到了不可行走的表面 (比如非常陡峭的斜坡/墙根)
+	// ==========================================
+	if (CurrentFloor.IsWalkableFloor())
+	{
+		AdjustFloorHeight();
+		SetBase(CurrentFloor.HitResult.Component.Get(), CurrentFloor.HitResult.BoneName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s 🛑 滑铲退出 5：地板变为不可行走 (IsWalkableFloor = false)！地板法线Z: %.2f"), *RoleStr,
+		       CurrentFloor.HitResult.Normal.Z);
+		SetMovementMode(MOVE_Walking);
+		ExitSlide();
+	}
+
+	if (!bJustTeleported && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity())
+	{
+		//Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / deltaTime;
+		MaintainHorizontalGroundVelocity(); // 再次确保 Z 轴速度是干净的 0
+	}
 }
 
 bool UBpexCharacterMovementComponent::GetSlideSurface(FHitResult& HitResult) const

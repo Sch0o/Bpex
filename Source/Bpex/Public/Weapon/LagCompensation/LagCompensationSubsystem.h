@@ -18,18 +18,23 @@ public:
 	//注册
 	void RegisterComponent(ULagCompensationComponent* Component);
 	void UnregisterComponent(ULagCompensationComponent* Component);
-	//批量回溯
-	void RewindAllTargets(float ServerTime, AActor* Instigator = nullptr);
-	void RestoreAllTargets();
-	bool RewindLineTrace(FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel Channel,
-	                     const FCollisionQueryParams& Params, float RewindToTime, AActor* Instigator = nullptr);
-	bool RewindSweep(FHitResult& OutHit, const FVector& Start, const FVector& End, const FCollisionShape& Shape,
-	                 ECollisionChannel Channel, const FCollisionQueryParams& Params, float RewindToTime,
-	                 AActor* Instigator = nullptr);
+	
+	// 回溯指定Actor的HitBox
+	bool RewindActor(AActor* Actor, float RewindTime);
+	// 恢复指定Actor的HitBox
+	void RestoreActor(AActor* Actor);
+	
+	// 回溯所有已注册的目标（除了指定的射击者）
+	void RewindAllExcept(AActor* ExceptActor, float RewindTime);
+	// 恢复所有已回溯的目标
+	void RestoreAll();
+	
+	ULagCompensationComponent* FindComponentForActor(AActor* Actor) const;
 
 	int32 GetRegisteredCount() const { return RegisteredComponents.Num(); }
 	
 	void DrawCurrentPosition();
+	
 private:
 	TArray<TWeakObjectPtr<ULagCompensationComponent>> RegisteredComponents;
 	//清除已失效的弱引用
