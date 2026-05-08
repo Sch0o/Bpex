@@ -41,10 +41,10 @@ public:
 	
 	FGameplayTag Data_Ammo_DropAmount;
 	
-	/*
-	 * weapon
-	 */
+	
 	FGameplayTag Cooldown_Weapon_Fire;
+	FGameplayTag Cooldown_Ability_TestTactical;
+	FGameplayTag Cooldown_Ability_TestUltimate;
 	
 	FGameplayTag InputTag_LMB;
 	FGameplayTag InputTag_RMB;

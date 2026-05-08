@@ -4,6 +4,7 @@
 #include "UI/ShooterViewModel.h"
 
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "AbilitySystem/BpexAttributeSet.h"
 #include "AbilitySystem/LegendTypes.h"
 #include "AbilitySystem/LegendAbilityComponent.h"
@@ -18,44 +19,6 @@ void UShooterViewModel::SetHealthPercent(float NewPercent)
 void UShooterViewModel::SetReserveAmmo(int32 NewReserveAmmo)
 {
 	UE_MVVM_SET_PROPERTY_VALUE(ReserveAmmo, NewReserveAmmo);
-}
-
-void UShooterViewModel::InitializeASC(UAbilitySystemComponent* InASC)
-{
-	ASC = InASC;
-	if (!ASC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:ASC is null"))
-		return;
-	}
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetHealthAttribute()).AddUObject(
-		this, &UShooterViewModel::HealthChanged);
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetMaxHealthAttribute()).AddUObject(
-		this, &UShooterViewModel::MaxHealthChanged);
-
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetClipAmmoAttribute()).AddUObject(
-		this, &UShooterViewModel::ClipAmmoChanged);
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetReserveAmmoAttribute()).AddUObject(
-		this, &UShooterViewModel::ReserveAmmoChanged);
-
-	UpdateHealthPercent();
-	UpdateClipAmmo();
-	UpdateReserveAmmo();
-
-	FGameplayTag RootTag = FGameplayTag::RequestGameplayTag(FName("State.UI.UsingItem"));
-	ASC->RegisterGameplayTagEvent(RootTag, EGameplayTagEventType::NewOrRemoved).AddUObject(
-		this, &UShooterViewModel::OnAnyGameplayTagChanged);
-}
-
-void UShooterViewModel::InitializeInventory(UInventoryComponent* InIC)
-{
-	InventoryComponent = InIC;
-	if (!InIC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:InventoryComponent is null"))
-		return;
-	}
-	InIC->OnItemUseStarted.AddDynamic(this, &UShooterViewModel::HandleItemUseStarted);
 }
 
 void UShooterViewModel::SetIsUsingItem(bool bNewState)
@@ -118,6 +81,85 @@ void UShooterViewModel::SetUltimateIcon(UTexture2D* NewIcon)
 	UE_MVVM_SET_PROPERTY_VALUE(UltimateIcon, NewIcon);
 }
 
+void UShooterViewModel::InitializeViewModel(APlayerController* PC)
+{
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::InitializeViewModel:: PlayerController is null"));
+		return;
+	}
+	PlayerController = PC;
+	PC->OnPossessedPawnChanged.AddDynamic(this, &UShooterViewModel::HandlePawnChanged);
+	
+	if (APawn* CurrentPawn = PC->GetPawn())
+	{
+		HandlePawnChanged(nullptr, CurrentPawn);
+	}
+}
+
+void UShooterViewModel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn)
+{
+	if (!NewPawn)
+	{
+		UE_LOG(LogTemp, Log, TEXT("UShooterViewModel::HandlePawnChanged:: NewPawn is null"));
+		return;
+	}
+	if (ULegendAbilityComponent* AbilityComp = NewPawn->FindComponentByClass<ULegendAbilityComponent>())
+	{
+		InitializeLegendAbility(AbilityComp);
+	}else
+	{
+		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::HandlePawnChanged:: LegendAbilityComponent is null"));
+	}
+	if (UInventoryComponent* InventoryComp = NewPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		
+		InitializeInventory(InventoryComp);
+	}else
+	{
+		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::HandlePawnChanged:: InventoryComp is null"));
+	}
+	
+}
+
+void UShooterViewModel::InitializeASC(UAbilitySystemComponent* InASC)
+{
+	ASC = InASC;
+	if (!ASC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:ASC is null"))
+		return;
+	}
+	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetHealthAttribute()).AddUObject(
+		this, &UShooterViewModel::HealthChanged);
+	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetMaxHealthAttribute()).AddUObject(
+		this, &UShooterViewModel::MaxHealthChanged);
+
+	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetClipAmmoAttribute()).AddUObject(
+		this, &UShooterViewModel::ClipAmmoChanged);
+	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetReserveAmmoAttribute()).AddUObject(
+		this, &UShooterViewModel::ReserveAmmoChanged);
+
+	UpdateHealthPercent();
+	UpdateClipAmmo();
+	UpdateReserveAmmo();
+
+	FGameplayTag RootTag = FGameplayTag::RequestGameplayTag(FName("State.UI.UsingItem"));
+	ASC->RegisterGameplayTagEvent(RootTag, EGameplayTagEventType::NewOrRemoved).AddUObject(
+		this, &UShooterViewModel::OnAnyGameplayTagChanged);
+}
+
+void UShooterViewModel::InitializeInventory(UInventoryComponent* InIC)
+{
+	InventoryComponent = InIC;
+	if (!InIC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:InventoryComponent is null"))
+		return;
+	}
+	InIC->OnItemUseStarted.AddDynamic(this, &UShooterViewModel::HandleItemUseStarted);
+}
+
 void UShooterViewModel::InitializeLegendAbility(ULegendAbilityComponent* InLAC)
 {
 	if (!InLAC)
@@ -125,31 +167,34 @@ void UShooterViewModel::InitializeLegendAbility(ULegendAbilityComponent* InLAC)
 		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::InitializeLegendAbility:: LegendAbilityComponent is null"))
 		return;
 	}
-	//战术技能
-	FAbilitySlotInfo TacticalInfo = LegendAbilityComponent->GetAbilitySlotInfo(
-		EAbilitySlotType::Tactical);
-	if (UTexture2D* Tex = TacticalInfo.Icon.LoadSynchronous())
-	{
-		SetTacticalIcon(Tex);
-	}
-	//终极技能
-	FAbilitySlotInfo UltInfo = LegendAbilityComponent->GetAbilitySlotInfo(
-		EAbilitySlotType::Ultimate);
-	if (UTexture2D* Tex = UltInfo.Icon.LoadSynchronous())
-	{
-		SetUltimateIcon(Tex);
-	}
-	// 定时器，每帧刷新冷却/充能
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(
-			CooldownTimerHandle,
-			this,
-			&UShooterViewModel::UpdateAbilityCooldowns,
-			0.05f, // 20次/秒
-			true // 循环
-		);
-	}
+
+	// LegendAbilityComponent = InLAC;
+	// //战术技能
+	// FAbilitySlotInfo TacticalInfo = LegendAbilityComponent->GetAbilitySlotInfo(
+	// 	EAbilitySlotType::Tactical);
+	// if (UTexture2D* Tex = TacticalInfo.Icon.LoadSynchronous())
+	// {
+	// 	SetTacticalIcon(Tex);
+	// }
+	// //终极技能
+	// FAbilitySlotInfo UltInfo = LegendAbilityComponent->GetAbilitySlotInfo(
+	// 	EAbilitySlotType::Ultimate);
+	// if (UTexture2D* Tex = UltInfo.Icon.LoadSynchronous())
+	// {
+	// 	SetUltimateIcon(Tex);
+	// }
+	// // 定时器，每帧刷新冷却/充能
+	// if (UWorld* World = GetWorld())
+	// {
+	// 	World->GetTimerManager().SetTimer(
+	// 		CooldownTimerHandle,
+	// 		this,
+	// 		&UShooterViewModel::UpdateAbilityCooldowns,
+	// 		0.05f, 
+	// 		true 
+	// 	);
+	// }
+	
 	// 初始状态
 	SetIsTacticalReady(true);
 	SetTacticalCooldownPercent(1.f);
@@ -161,21 +206,23 @@ void UShooterViewModel::UpdateAbilityCooldowns()
 {
 	if (!LegendAbilityComponent) return;
 
-	//战术技能
-	float TacticalCDRemaining = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
-	float TacticalCDPercent = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
-	bool bTacticalReady = LegendAbilityComponent->IsAbilityReady(EAbilitySlotType::Tactical);
-	SetTacticalCooldownPercent(TacticalCDPercent);
-	SetTacticalCooldownRemaining(TacticalCDRemaining);
-	SetIsTacticalReady(bTacticalReady);
-	
-	//绝招
-	float UltChargePercent = LegendAbilityComponent->GetUltimateChargePercent();
-	bool bUltReady = LegendAbilityComponent->IsUltimateReady();
-	SetUltimateChargePercent(UltChargePercent);
-	SetIsUltimateReady(bUltReady);
-	
+	// //战术技能
+	// float TacticalCDRemaining = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
+	// UE_LOG(LogTemp, Warning, TEXT("TacticalCDRemaining: %f"), TacticalCDRemaining);
+	// float TacticalCDPercent = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
+	// UE_LOG(LogTemp, Warning, TEXT("TacticalCDPercent : %f"), TacticalCDPercent);
+	// bool bTacticalReady = LegendAbilityComponent->IsAbilityReady(EAbilitySlotType::Tactical);
+	// SetTacticalCooldownPercent(TacticalCDPercent);
+	// SetTacticalCooldownRemaining(TacticalCDRemaining);
+	// SetIsTacticalReady(bTacticalReady);
+	//
+	// //绝招
+	// float UltChargePercent = LegendAbilityComponent->GetUltimateChargePercent();
+	// bool bUltReady = LegendAbilityComponent->IsUltimateReady();
+	// SetUltimateChargePercent(UltChargePercent);
+	// SetIsUltimateReady(bUltReady);
 }
+
 
 void UShooterViewModel::OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount)
 {

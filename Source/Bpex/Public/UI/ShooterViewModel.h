@@ -108,6 +108,10 @@ public:
 	UTexture2D* GetUltimateIcon() const { return UltimateIcon; }
 	UFUNCTION(BlueprintCallable)
 	void SetUltimateIcon(UTexture2D* NewIcon);
+	
+	
+	UFUNCTION(BlueprintCallable)
+	void InitializeViewModel(APlayerController* PC);
 
 protected:
 	UPROPERTY()
@@ -115,6 +119,9 @@ protected:
 
 	UPROPERTY()
 	UInventoryComponent* InventoryComponent;
+	
+	UPROPERTY()
+	ULegendAbilityComponent* LegendAbilityComponent;
 	
 	void OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount);
 
@@ -131,14 +138,15 @@ protected:
 	UFUNCTION()
 	void HandleItemUseStarted(float Duration);
 	
-	//技能
-	UPROPERTY()
-	ULegendAbilityComponent* LegendAbilityComponent;
-	
 	UFUNCTION()
 	void UpdateAbilityCooldowns();
 	
 	FTimerHandle CooldownTimerHandle;
+	
+	//MVVM init
+	UFUNCTION(Category="Init")
+	void HandlePawnChanged(APawn* OldPawn, APawn* NewPawn);
+
 
 private:
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetHealthPercent, Getter=GetHealthPercent,
@@ -196,5 +204,8 @@ private:
 	   Getter = GetUltimateIcon,
 	   meta = (AllowPrivateAccess = true))
 	TObjectPtr<UTexture2D> UltimateIcon = nullptr;
+	
+	UPROPERTY()
+	APlayerController* PlayerController;
 	
 };

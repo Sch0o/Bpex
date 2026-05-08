@@ -214,7 +214,6 @@ void UBpexCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float D
 	}
 	else
 	{
-		bWantsToCrouch = false;
 		if (IsSliding())
 		{
 			SetMovementMode(MOVE_Walking);

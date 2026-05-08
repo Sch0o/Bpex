@@ -54,7 +54,7 @@ class BPEX_API AThirdPersonCharacter : public ACharacter, public IAbilitySystemI
 	UBoxComponent* HitBox_Calf_R;
 
 public:
-	// Sets default values for this character's properties
+	
 	AThirdPersonCharacter(const FObjectInitializer& ObjectInitializer);
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -100,7 +100,7 @@ protected:
 	void AddCharacterAbilities();
 
 public:
-	// Called every frame
+	
 	virtual void Tick(float DeltaTime) override;
 
 	// Called to bind functionality to input

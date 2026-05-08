@@ -71,19 +71,19 @@ bool ULegendUltimateAbility::CanActivateAbility(
     const FGameplayTagContainer* TargetTags,
     FGameplayTagContainer* OptionalRelevantTags) const
 {
-    if (!Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags))
-    {
-        return false;
-    }
-    // 检查充能是否够
-    AActor* Avatar = ActorInfo->AvatarActor.Get();
-    if (Avatar)
-    {
-        ULegendAbilityComponent* LegendComp = Avatar->FindComponentByClass<ULegendAbilityComponent>();
-        if (LegendComp)
-        {
-            return LegendComp->GetUltimateChargePercent() >= RequiredChargePercent;
-        }
-    }
+    // if (!Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags))
+    // {
+    //     return false;
+    // }
+    // // 检查充能是否够
+    // AActor* Avatar = ActorInfo->AvatarActor.Get();
+    // if (Avatar)
+    // {
+    //     ULegendAbilityComponent* LegendComp = Avatar->FindComponentByClass<ULegendAbilityComponent>();
+    //     if (LegendComp)
+    //     {
+    //         return LegendComp->GetUltimateChargePercent() >= RequiredChargePercent;
+    //     }
+    // }
     return false;
 }

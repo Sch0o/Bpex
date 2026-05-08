@@ -1,4 +1,4 @@
-﻿#include "Characters/ShooterEnemyDummy.h"
+﻿#include "Characters/Enemy/ShooterEnemyDummy.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystem/BpexAttributeSet.h"
 #include "Components/CapsuleComponent.h"

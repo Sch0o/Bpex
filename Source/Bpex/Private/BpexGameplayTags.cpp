@@ -14,10 +14,14 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 
 
 	/*
-	 * Weapon Tags
+	 * Cooldown
 	 */
 	Get().Cooldown_Weapon_Fire = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Cooldown.Weapon.Fire"), FString("Cooldown Tag for Weapon Fire"));
+	Get().Cooldown_Ability_TestTactical = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Cooldown.Ability.TestTactical"), FString("Cooldown Tag for TestTactical Ability"));
+	Get().Cooldown_Ability_TestUltimate= UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Cooldown.Ability.TestUltimate"), FString("Cooldown Tag for TestUltimate Ability"));
 
 	/*
 	* State Tags

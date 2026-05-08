@@ -13,8 +13,9 @@
 #include "AbilitySystem/LegendAbilityComponent.h"
 #include "Players/ShooterPlayerController.h"
 #include "Weapon/BulletManagerComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Interface/AnimationBlueprintInterface.h"
 
-// Sets default values
 AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -27,7 +28,6 @@ AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Su
 
 	LegendAbilityComponent = CreateDefaultSubobject<ULegendAbilityComponent>(TEXT("LegendAbilityComponent"));
 
-	//允许角色下蹲
 	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
 }
 
@@ -35,12 +35,116 @@ void AApexCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//授予传奇技能
-	if (HasAuthority() && LegendAbilityComponent)
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (MeshComp && DefaultAnimLayerClass)
 	{
-		if (LegendData)
+		MeshComp->LinkAnimClassLayers(DefaultAnimLayerClass);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UnArmedAnimLayerClass not set"));
+	}
+
+	UpdateGate(EGate::Jogging);
+
+
+	if (CombatComp)
+	{
+		CombatComp->OnWeaponChanged.AddDynamic(this, &AApexCharacter::OnWeaponChanged);
+	}
+}
+
+void AApexCharacter::OnWeaponChanged(EGun WeaponType)
+{
+	if (TSubclassOf<UAnimInstance>* Found = AnimLayerMap.Find(WeaponType))
+	{
+		GetMesh()->LinkAnimClassLayers(*Found);
+	}
+	UE_LOG(LogTemp, Log, TEXT("AnimLayer → %s"), *UEnum::GetValueAsString(WeaponType));
+}
+
+void AApexCharacter::UpdateGate(EGate Gate)
+{
+	CurrentGate = Gate;
+	UCharacterMovementComponent* MovementComp = GetCharacterMovement();
+	if (!MovementComp)
+	{
+		return;
+	}
+
+	if (const FGateSetting* FoundSetting = GateSettings.Find(Gate))
+	{
+		MovementComp->MaxWalkSpeed = FoundSetting->MaxWalkSpeed;
+		MovementComp->MaxAcceleration = FoundSetting->MaxAcceleration;
+		MovementComp->BrakingDecelerationWalking = FoundSetting->BrakingDeceleration;
+		MovementComp->BrakingFrictionFactor = FoundSetting->BrakingFrictionFactor;
+		MovementComp->BrakingFriction = FoundSetting->BrakingFriction;
+		MovementComp->bUseSeparateBrakingFriction = FoundSetting->UseSeparateBrakingFriction;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UpdateGate: Do not find GateSetting"));
+	}
+
+	if (USkeletalMeshComponent* MyMesh = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MyMesh->GetAnimInstance())
 		{
-			LegendAbilityComponent->InitializeWithLegendData(LegendData);
+			if (AnimInstance->Implements<UAnimationBlueprintInterface>())
+			{
+				IAnimationBlueprintInterface::Execute_ReceiveCurrentGate(AnimInstance, CurrentGate);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning,
+				       TEXT("AnimInstance did not implement UAnimationBlueprintInterface in Blueprint!"));
+			}
+		}
+	}
+}
+
+void AApexCharacter::UpdateGroundDistance()
+{
+	UCharacterMovementComponent* CMC = GetCharacterMovement();
+	if (!CMC) return;
+
+	if (CMC->IsMovingOnGround())
+	{
+		SendGroundDistance(0.f);
+		return;
+	}
+
+	UCapsuleComponent* Capsule = GetCapsuleComponent();
+	if (!Capsule) return;
+	FVector Start = GetActorLocation();
+	float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
+	FVector End = Start - FVector(0.f, 0.f, 1000.f);
+	Start.Z -= HalfHeight;
+	FHitResult HitResult;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult, Start, End, ECC_Visibility, Params
+	);
+
+	SendGroundDistance(bHit ? HitResult.Distance : -1.f);
+}
+
+void AApexCharacter::SendGroundDistance(float Distance) const
+{
+	if (USkeletalMeshComponent* MyMesh = GetMesh())
+	{
+		if (UAnimInstance* AnimInstance = MyMesh->GetAnimInstance())
+		{
+			if (AnimInstance->Implements<UAnimationBlueprintInterface>())
+			{
+				IAnimationBlueprintInterface::Execute_ReceiveGroundDistance(AnimInstance, Distance);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning,
+				       TEXT("AnimInstance did not implement UAnimationBlueprintInterface in Blueprint!"));
+			}
 		}
 	}
 }
@@ -56,7 +160,10 @@ void AApexCharacter::InitAbilityActorInfo()
 	AttributeSet = ShooterPlayerState->GetAttributeSet();
 	InitializePrimaryAttributes();
 
-	LegendAbilityComponent->InitAbilitySystem(AbilitySystemComponent);
+	if (LegendAbilityComponent)
+	{
+		LegendAbilityComponent->InitAbilitySystem(AbilitySystemComponent);
+	}
 }
 
 void AApexCharacter::PossessedBy(AController* NewController)
@@ -79,34 +186,13 @@ void AApexCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 }
 
-// Called every frame
 void AApexCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	// 画出胶囊体底部位置
-	// FVector CapsuleBottom = GetCapsuleComponent()->GetComponentLocation() - FVector(
-	// 	0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-	// DrawDebugSphere(GetWorld(), CapsuleBottom, 5.f, 8,
-	//                 IsLocallyControlled() ? FColor::Green : FColor::Red,
-	//                 false, -1.f);
-	// 画出Mesh脚底位置  
-	FVector MeshFeet = GetMesh()->GetComponentLocation();
-	DrawDebugSphere(GetWorld(), MeshFeet, 5.f, 8, IsLocallyControlled() ? FColor::Green : FColor::Red, false, -1.f);
-	// 打印两者的Z差值
-	// if (GetLocalRole() == ROLE_SimulatedProxy)
-	// {
-	// 	DrawDebugString(GetWorld(),
-	// 	                GetActorLocation() + FVector(0, 0, 100),
-	// 	                FString::Printf(TEXT("CapsuleBottom Z: %.1f\nMeshFeet Z: %.1f\nDiff: %.1f\nBaseOffset Z: %.1f"),
-	// 	                                CapsuleBottom.Z,
-	// 	                                MeshFeet.Z,
-	// 	                                MeshFeet.Z - CapsuleBottom.Z,
-	// 	                                GetBaseTranslationOffset().Z),
-	// 	                nullptr, FColor::White, 0.f, false);
-	// }
+
+	UpdateGroundDistance();
 }
 
-// Called to bind functionality to input
 void AApexCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -127,12 +213,27 @@ void AApexCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AApexCharacter::DoSprintStart);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AApexCharacter::DoSprintEnd);
 
-		//下蹲
 		if (CrouchAction)
 		{
 			EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &AApexCharacter::DoCrouch);
-			EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this,
-			                                   &AApexCharacter::DoUnCrouch);
+		}
+
+		if (AimAction)
+		{
+			EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Triggered, this, &AApexCharacter::DoAim);
+			EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &AApexCharacter::DoUnAim);
+		}
+
+		if (JumpAction)
+		{
+			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AApexCharacter::Jump);
+			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AApexCharacter::StopJumping);
+		}
+
+		if (SwitchWeaponAction)
+		{
+			EnhancedInputComponent->BindAction(SwitchWeaponAction, ETriggerEvent::Started, this,
+			                                   &AApexCharacter::SwitchWeapon);
 		}
 	}
 }
@@ -178,12 +279,16 @@ FCollisionQueryParams AApexCharacter::GetIgnoreCharacterParams() const
 
 void AApexCharacter::DoCrouch()
 {
-	Crouch();
-}
-
-void AApexCharacter::DoUnCrouch()
-{
-	UnCrouch();
+	if (CurrentGate == EGate::Crouching)
+	{
+		UpdateGate(EGate::Jogging);
+		UnCrouch();
+	}
+	else
+	{
+		UpdateGate(EGate::Crouching);
+		Crouch();
+	}
 }
 
 void AApexCharacter::DoSprintStart()
@@ -218,12 +323,38 @@ void AApexCharacter::DoSlideEnd()
 	}
 }
 
+void AApexCharacter::DoAim()
+{
+	UpdateGate(EGate::Walking);
+}
+
+void AApexCharacter::DoUnAim()
+{
+	UpdateGate(EGate::Jogging);
+}
+
+void AApexCharacter::SwitchWeapon(const FInputActionValue& Value)
+{
+	int32 Selection = FMath::TruncToInt(Value.Get<float>());
+
+	USkeletalMeshComponent* MeshComp = GetMesh();
+	if (!MeshComp) return;
+
+	if (Selection == 3)
+	{
+		CombatComp->Holster();
+	}
+	else
+	{
+		CombatComp->EquipSlotWeapon(Selection - 1);
+	}
+}
+
 void AApexCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME_CONDITION(AApexCharacter, bIsSliding, COND_None);
 }
-
 
 void AApexCharacter::DoInteract()
 {

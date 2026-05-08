@@ -2,12 +2,13 @@
 
 
 #include "Players//ShooterPlayerController.h"
+
+#include "AbilitySystemInterface.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
-#include "Characters/ShooterCharacter.h"
 #include "GameFramework/PlayerState.h"
 #include "InventorySystem/InvItemComponent.h"
 #include "InventorySystem/Interact/InteractableInterface.h"

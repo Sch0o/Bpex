@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BpexTypes.h"
 #include "Components/ActorComponent.h"
 #include "CombatComponent.generated.h"
 
@@ -13,6 +14,23 @@ class AShooterCharacter;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBulletCountUpdatedDelegate, int32, MagazineSize, int32, Bullets);
 
+
+USTRUCT(BlueprintType)
+struct FWeaponInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 SlotIndex = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<AShooterWeapon> WeaponClass;
+	
+};
+
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChanged, EGun, WeaponType);
+
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class BPEX_API UCombatComponent : public UActorComponent
 {
@@ -21,54 +39,67 @@ class BPEX_API UCombatComponent : public UActorComponent
 public:
 	// Sets default values for this component's properties
 	UCombatComponent();
-	
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 	
-	UPROPERTY(EditAnywhere, Category ="Weapons")
-	FName WeaponSocket;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="Combat|Slots")
+	int32 NumSlots = 2;
 	
-	UPROPERTY(EditAnywhere, Category ="Aim", meta = (ClampMin = 0, ClampMax = 100000, Units = "cm"))
-	float MaxAimDistance = 10000.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="Combat|Sockets")
+	FName EquippedSocketName = FName("WeaponEquipped");
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat|Runtime")
+	TArray<TObjectPtr<AShooterWeapon>> WeaponSlots;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat|Runtime")
+	int32 ActiveSlotIndex = INDEX_NONE;
+	
+	
+	UPROPERTY(Transient)
+	TObjectPtr<AShooterWeapon> CurrentWeapon = nullptr;
 
 	UPROPERTY(Transient)
-	ACharacter* CharacterOwner;
+	TObjectPtr<ACharacter> CharacterOwner;
 
-	UPROPERTY(Transient,Replicated)
+	UPROPERTY(Transient, Replicated)
 	TArray<AShooterWeapon*> OwnedWeapons;
-
-	UPROPERTY(Transient,ReplicatedUsing = OnRep_CurrentWeapon)
-	TObjectPtr<AShooterWeapon> CurrentWeapon;
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Weapons")
-	TSubclassOf<AShooterWeapon>DefaultWeaponClass;
+	//初始武器列表
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Weapons")
+	TArray<FWeaponInfo> DefaultWeapons;
 	
-	UFUNCTION()
-	void OnRep_CurrentWeapon(AShooterWeapon*LastWeapon);
-
+	UPROPERTY(EditAnywhere, Category = "Aim", meta = (ClampMin = 0, ClampMax = 100000, Units = "cm"))
+	float MaxAimDistance = 10000.f;
 
 public:
-	// Called every frame
+	
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+	FOnWeaponChanged OnWeaponChanged;
+	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
 
-	void StartFiring() const;
-	void StopFiring() const;
-	void SwitchWeapon();
-	void DeactivateCurrentWeapon();
+	UFUNCTION(BlueprintCallable)
+	void EquipSlotWeapon(int32 SlotIndex);
 	
-	void AddWeaponClass(const TSubclassOf<AShooterWeapon>& WeaponClass);
-	void AttachWeaponMeshes(AShooterWeapon* Weapon);
-	void AddWeaponRecoil(float Recoil);
+	UFUNCTION(BlueprintCallable)
+	void Holster();
+
+	UFUNCTION(BlueprintPure)
+	AShooterWeapon* GetCurrentWeapon() const { return CurrentWeapon; }
+	
+
+	UFUNCTION(BlueprintCallable)
 	FVector GetWeaponTargetLocation();
-	void OnWeaponActivated(AShooterWeapon* Weapon);
-	
-	UFUNCTION(BlueprintCallable, Category = "Weapons")
-	AShooterWeapon*GetCurrentWeapon()const;
+
 protected:
-	AShooterWeapon* FindWeaponOfType(TSubclassOf<AShooterWeapon> WeaponClass) const;
+	
+	void SpawnAndAttachWeapons();
+	
+	void AttachWeaponToSocket(AShooterWeapon* Weapon, FName SocketName) const;
+	
+	USkeletalMeshComponent* GetOwnerMesh() const;
 };

@@ -45,14 +45,6 @@ struct FAbilitySlotInfo
     // 技能名称
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     FText DisplayName;
-
-    // 技能描述
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-    FText Description;
-
-    // 授予后的 Ability Spec Handle (运行时)
-    UPROPERTY(Transient)
-    FGameplayAbilitySpecHandle GrantedHandle;
 };
 
 // ========== 增幅效果定义 ==========
@@ -93,18 +85,16 @@ struct FShieldPerkEntry
 
     // 相当于原来 Map 的 Key
     UPROPERTY(BlueprintReadWrite)
-    EShieldTier Tier;
+    EShieldTier Tier = EShieldTier::Uncommon;
 
     // 相当于原来 Map 的 Value
     UPROPERTY(BlueprintReadWrite)
     FShieldPerkInfo PerkInfo;
-
-    // 写一个默认构造函数是个好习惯
+    
     FShieldPerkEntry() {}
     FShieldPerkEntry(EShieldTier InTier, FShieldPerkInfo InInfo) 
         : Tier(InTier), PerkInfo(InInfo) {}
-
-    // 重载 == 运算符，方便以后用 FindByKey 快速查找
+    
     bool operator==(const EShieldTier& OtherTier) const
     {
         return Tier == OtherTier;
