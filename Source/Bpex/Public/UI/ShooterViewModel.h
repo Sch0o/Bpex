@@ -6,6 +6,7 @@
 #include "MVVMViewModelBase.h"
 #include "ShooterViewModel.generated.h"
 
+class UCombatComponent;
 class ULegendAbilityComponent;
 class UInventoryComponent;
 struct FGameplayTag;
@@ -44,12 +45,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetClipAmmo(int32 NewClipAmmo);
 
+	
 	UFUNCTION(BlueprintCallable)
 	void InitializeASC(UAbilitySystemComponent* InASC);
 
 	UFUNCTION(BlueprintCallable)
 	void InitializeInventory(UInventoryComponent* InIC);
-
+	
+	UFUNCTION(BlueprintCallable)
+	void InitializeCombat(UCombatComponent* InCombat);
+	
 	//初始化技能系统
 	UFUNCTION(BlueprintCallable, Category="Ability")
 	void InitializeLegendAbility(ULegendAbilityComponent* InLAC);
@@ -121,7 +126,10 @@ protected:
 	UInventoryComponent* InventoryComponent;
 	
 	UPROPERTY()
-	ULegendAbilityComponent* LegendAbilityComponent;
+	ULegendAbilityComponent* LegendAbilityComponent = nullptr;
+	
+	UPROPERTY()
+	TObjectPtr<UCombatComponent> CombatComponent = nullptr;
 	
 	void OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount);
 
@@ -130,13 +138,14 @@ protected:
 
 	void UpdateHealthPercent();
 
-	void ClipAmmoChanged(const FOnAttributeChangeData& Data);
-	void UpdateClipAmmo();
-	void ReserveAmmoChanged(const FOnAttributeChangeData& Data);
-	void UpdateReserveAmmo();
-
 	UFUNCTION()
 	void HandleItemUseStarted(float Duration);
+	
+	UFUNCTION()
+	void HandleAmmoUIUpdated(int32 NewClipAmmo, int32 NewReserveAmmo);
+	
+	UFUNCTION()
+	void HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount);
 	
 	UFUNCTION()
 	void UpdateAbilityCooldowns();

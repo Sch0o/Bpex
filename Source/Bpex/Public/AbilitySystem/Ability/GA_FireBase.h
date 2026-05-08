@@ -60,7 +60,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category="Ability", meta=(DisplayName="On Auto Fire Tick"))
 	void K2_OnAutoFireTick();
 	void FireSingleBullet();
+	
 	void InitLocalAmmoCount();
+	
 	bool TryConsumeLocalAmmo();
 
 	FVector ApplySpread(const FVector& BaseDirection) const;

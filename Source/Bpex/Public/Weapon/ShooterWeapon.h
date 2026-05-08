@@ -29,21 +29,12 @@ class BPEX_API AShooterWeapon : public AActor
 protected:
 	UPROPERTY()
 	TObjectPtr<UCombatComponent> CombatComp;
-
-	UPROPERTY(EditAnywhere, Category="Ammo")
-	TSubclassOf<AShooterProjectile> ProjectileClass;
-	
-	UPROPERTY(EditAnywhere, Category="Animation")
-	UAnimMontage* FiringMontage;
-	
-	UPROPERTY(EditAnywhere, Category="Animation")
-	TSubclassOf<UAnimInstance> AnimInstanceClass;
 	
 	UPROPERTY(EditAnywhere, Category="Weapon|Socket")
 	FName MuzzleSocketName;
 	
 	UPROPERTY(EditAnywhere, Category="Aim", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm"))
-	float MuzzleOffset = 10.0f;
+	float MuzzleOffset = 0.0f;
 
 	TObjectPtr<APawn> PawnOwner;
 	
@@ -85,8 +76,6 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	USkeletalMeshComponent* GetWeaponMesh() const { return WeaponMesh; }
-
-	const TSubclassOf<UAnimInstance>& GetAnimInstanceClass() const;
 	
 	UCombatComponent* GetCombatComponent() const;
 

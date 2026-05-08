@@ -13,6 +13,7 @@ class UAbilitySystemComponent;
 class AShooterWeapon;
 class UAnimMontage;
 class AShooterCharacter;
+class UInventoryComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FBulletCountUpdatedDelegate, int32, MagazineSize, int32, Bullets);
 
@@ -31,7 +32,7 @@ struct FWeaponInfo
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChanged, EGun, WeaponType);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAmmoUIUpdated, int32, ClipAmmo, int32, ReserveAmmo);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class BPEX_API UCombatComponent : public UActorComponent
@@ -77,11 +78,25 @@ protected:
 	float MaxAimDistance = 10000.f;
 
 public:
-	
-	int32 ConsumeAmmo(EAmmoType AmmoType,int32 Amount);
+	//弹药UI更新委托
+	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+	FOnAmmoUIUpdated OnAmmoUIUpdated;
 	
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
 	FOnWeaponChanged OnWeaponChanged;
+	
+	//扣弹夹子弹
+	int32 ConsumeClipAmmo(int32 Amount =1);
+	
+	//换弹
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void Reload();
+	
+	//刷新子弹UI
+	void BroadcastAmmoUI();
+	
+	//获取当前武器子弹类型
+	EAmmoType GetCurrentAmmoType() const;
 	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
@@ -100,6 +115,12 @@ public:
 
 protected:
 	
+	UPROPERTY()
+	TObjectPtr<UInventoryComponent> InventoryComp = nullptr;
+	
+	UFUNCTION(Server,Reliable)
+	void Server_Reload();
+	
 	void SpawnAndAttachWeapons();
 	
 	void AttachWeaponToSocket(AShooterWeapon* Weapon, FName SocketName) const;
@@ -109,4 +130,12 @@ protected:
 	UAbilitySystemComponent* GetASC() const;
 	
 	void SetArmedState(bool bArmed);
+	
+private:
+	void BindWeaponAmmoDelegate(AShooterWeapon* Weapon);
+	void UnbindWeaponAmmoDelegate(AShooterWeapon* Weapon);
+	
+	UFUNCTION()
+	void OnWeaponClipAmmoChanged(int32 NewClip, int32 MaxClip);
+	
 };

@@ -6,7 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystem/BpexAttributeSet.h"
-#include "AbilitySystem/LegendTypes.h"
+#include "Weapon/CombatComponent.h"
 #include "AbilitySystem/LegendAbilityComponent.h"
 #include "InventorySystem/InventoryComponent.h"
 
@@ -120,6 +120,14 @@ void UShooterViewModel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn)
 		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::HandlePawnChanged:: InventoryComp is null"));
 	}
 	
+	if (UCombatComponent* Combat = NewPawn->FindComponentByClass<UCombatComponent>())
+	{
+		InitializeCombat(Combat);
+	}else
+	{
+		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::HandlePawnChanged:: CombatComponent is null"));
+	}
+	
 }
 
 void UShooterViewModel::InitializeASC(UAbilitySystemComponent* InASC)
@@ -134,15 +142,8 @@ void UShooterViewModel::InitializeASC(UAbilitySystemComponent* InASC)
 		this, &UShooterViewModel::HealthChanged);
 	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetMaxHealthAttribute()).AddUObject(
 		this, &UShooterViewModel::MaxHealthChanged);
-
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetClipAmmoAttribute()).AddUObject(
-		this, &UShooterViewModel::ClipAmmoChanged);
-	ASC->GetGameplayAttributeValueChangeDelegate(UBpexAttributeSet::GetReserveAmmoAttribute()).AddUObject(
-		this, &UShooterViewModel::ReserveAmmoChanged);
-
+	
 	UpdateHealthPercent();
-	UpdateClipAmmo();
-	UpdateReserveAmmo();
 
 	FGameplayTag RootTag = FGameplayTag::RequestGameplayTag(FName("State.UI.UsingItem"));
 	ASC->RegisterGameplayTagEvent(RootTag, EGameplayTagEventType::NewOrRemoved).AddUObject(
@@ -157,7 +158,21 @@ void UShooterViewModel::InitializeInventory(UInventoryComponent* InIC)
 		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:InventoryComponent is null"))
 		return;
 	}
-	InIC->OnItemUseStarted.AddDynamic(this, &UShooterViewModel::HandleItemUseStarted);
+	InventoryComponent->OnItemUseStarted.AddDynamic(this, &UShooterViewModel::HandleItemUseStarted);
+	
+	InventoryComponent->OnAmmoChanged.AddDynamic(this, &UShooterViewModel::HandleAmmoChanged);
+	
+}
+
+void UShooterViewModel::InitializeCombat(UCombatComponent* InCombat)
+{
+	CombatComponent = InCombat;
+	if (!CombatComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ViewModel Init fail:InventoryComponent is null"))
+		return;
+	}
+	CombatComponent->OnAmmoUIUpdated.AddDynamic(this, &UShooterViewModel::HandleAmmoUIUpdated);
 }
 
 void UShooterViewModel::InitializeLegendAbility(ULegendAbilityComponent* InLAC)
@@ -259,30 +274,22 @@ void UShooterViewModel::UpdateHealthPercent()
 	SetHealthPercent(NewPercent);
 }
 
-void UShooterViewModel::ClipAmmoChanged(const FOnAttributeChangeData& Data)
-{
-	SetClipAmmo(Data.NewValue);
-}
-
-void UShooterViewModel::UpdateClipAmmo()
-{
-	if (!ASC) return;
-	SetClipAmmo(ASC->GetNumericAttribute(UBpexAttributeSet::GetClipAmmoAttribute()));
-}
-
-void UShooterViewModel::ReserveAmmoChanged(const FOnAttributeChangeData& Data)
-{
-	SetReserveAmmo(Data.NewValue);
-}
-
-void UShooterViewModel::UpdateReserveAmmo()
-{
-	if (!ASC) return;
-	UE_LOG(LogTemp, Warning, TEXT("%f"), ASC->GetNumericAttribute(UBpexAttributeSet::GetReserveAmmoAttribute()));
-	SetReserveAmmo(ASC->GetNumericAttribute(UBpexAttributeSet::GetReserveAmmoAttribute()));
-}
 
 void UShooterViewModel::HandleItemUseStarted(float Duration)
 {
 	SetCurrentUseDuration(Duration);
+}
+
+void UShooterViewModel::HandleAmmoUIUpdated(int32 NewClipAmmo, int32 NewReserveAmmo)
+{
+	SetClipAmmo(NewClipAmmo);
+	SetReserveAmmo(NewReserveAmmo);
+}
+
+void UShooterViewModel::HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount)
+{
+	if (CombatComponent&&CombatComponent->GetCurrentAmmoType() == AmmoType)
+	{
+		SetReserveAmmo(NewCount);
+	}
 }

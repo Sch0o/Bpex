@@ -9,14 +9,13 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "GameplayCueManager.h"
-#include "AbilitySystem/BpexAttributeSet.h"
 #include "Weapon/BulletManagerComponent.h"
 #include "Weapon/BulletTypes.h"
 
 UGA_FireBase::UGA_FireBase()
-{ 
+{
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	
+
 	// 网络预测
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 }
@@ -42,7 +41,7 @@ void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
 	if (IsLocallyControlled())
 	{
 		InitLocalAmmoCount();
-		AutoFireTick(); 
+		AutoFireTick();
 		GetWorld()->GetTimerManager().SetTimer(
 			AutoFireTimerHandle, this,
 			&UGA_FireBase::AutoFireTick, TimeBetweenShots, true);
@@ -61,7 +60,7 @@ void UGA_FireBase::AutoFireTick()
 {
 	if (!TryConsumeLocalAmmo())
 	{
-		UE_LOG(LogTemp,Warning,TEXT("UGA_FireBase::AutoFireTick:: out of ammo"));
+		UE_LOG(LogTemp, Warning, TEXT("UGA_FireBase::AutoFireTick:: out of ammo"));
 		K2_OnInputReleased();
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
 		return;
@@ -120,23 +119,45 @@ void UGA_FireBase::FireSingleBullet()
 
 void UGA_FireBase::InitLocalAmmoCount()
 {
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (ASC)
-	{
-		LocalAmmoCount = ASC->GetNumericAttribute(UBpexAttributeSet::GetClipAmmoAttribute());
-	}else
-	{
-		UE_LOG(LogTemp,Warning,TEXT("UGA_FireBase::InitLocalAmmoCount::ASC is null"));
-	}
+	AActor* AvatarActor = GetAvatarActorFromActorInfo();
+	if (!AvatarActor) return;
+
+	// 2. 从该 AvatarActor 上寻找 CombatComponent
+	UCombatComponent* Combat = AvatarActor->FindComponentByClass<UCombatComponent>();
+	if (!Combat) return;
+
+	AShooterWeapon* Weapon = Combat->GetCurrentWeapon();
+	if (!Weapon) return;
+
+	LocalAmmoCount = Weapon->CurrentClipAmmo;
 }
 
 bool UGA_FireBase::TryConsumeLocalAmmo()
 {
-	if (LocalAmmoCount <= 0)
-	{
-		return false;
-	}
+	if (LocalAmmoCount <= 0) return false;
+
+	// 1. 获取释放技能的实体表现 (Avatar Actor)
+	AActor* AvatarActor = GetAvatarActorFromActorInfo();
+	if (!AvatarActor) return false;
+
+	// 本地预扣除
 	LocalAmmoCount--;
+
+	if (AvatarActor->HasAuthority())
+	{
+		// 3. 使用 AvatarActor 来寻找组件
+		UCombatComponent* Combat = AvatarActor->FindComponentByClass<UCombatComponent>();
+		if (Combat)
+		{
+			int32 Consumed = Combat->ConsumeClipAmmo(1);
+			if (Consumed <= 0) 
+			{
+				LocalAmmoCount++; 
+				return false;
+			}
+		}
+	}
+    
 	return true;
 }
 

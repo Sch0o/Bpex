@@ -56,6 +56,8 @@ void AShooterWeapon::SetCombatComponent(UCombatComponent* NewCombatComponent)
 void AShooterWeapon::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	CurrentClipAmmo = MaxClipAmmo;
 }
 
 
@@ -76,11 +78,6 @@ void AShooterWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>&
 	DOREPLIFETIME(AShooterWeapon, CurrentClipAmmo);
 }
 
-
-const TSubclassOf<UAnimInstance>& AShooterWeapon::GetAnimInstanceClass() const
-{
-	return AnimInstanceClass;
-}
 
 UCombatComponent* AShooterWeapon::GetCombatComponent() const
 {
