@@ -187,18 +187,6 @@ void UBpexCharacterMovementComponent::OnMovementUpdated(float DeltaSeconds, cons
                                                         const FVector& OldVelocity)
 {
 	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
-
-	if (MovementMode == MOVE_Walking)
-	{
-		if (bSafe_WantsToSprint)
-		{
-			MaxWalkSpeed = Spring_MaxWalkSpeed;
-		}
-		else
-		{
-			MaxWalkSpeed = Walk_MaxWalkSpeed;
-		}
-	}
 }
 
 void UBpexCharacterMovementComponent::UpdateCharacterStateBeforeMovement(float DeltaTime)

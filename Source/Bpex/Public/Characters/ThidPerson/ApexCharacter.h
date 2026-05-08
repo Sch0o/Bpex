@@ -80,6 +80,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Animation")
 	TMap<EGun,TSubclassOf<UAnimInstance>>AnimLayerMap;
 	
+	//绑定Firing Tag变化的回调
+	void OnFiringTagChanged(const FGameplayTag Tag, int32 NewCount);
+	
+	//在ASC初始化后注册回调
+	void RegisterGateTagCallbacks();
+	
 	UFUNCTION()
 	void OnWeaponChanged(EGun WeaponType);
 	

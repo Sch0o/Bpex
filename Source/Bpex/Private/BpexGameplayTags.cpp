@@ -41,6 +41,8 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("State.Armed"));
 	Get().State_UnArmed = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("State.UnArmed"));
+	Get().State_Action_Firing = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Action.Firing"), FString("State for Action Firing"));
 
 	/*
 	* Event Tags

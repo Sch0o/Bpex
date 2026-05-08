@@ -29,6 +29,7 @@ public:
 	FGameplayTag State_Debuff_Revealed;
 	FGameplayTag State_Armed;
 	FGameplayTag State_UnArmed;
+	FGameplayTag State_Action_Firing;
 	
 	FGameplayTag Event_UseItem_Medkit;
 	FGameplayTag Event_UseItem_Syringe;

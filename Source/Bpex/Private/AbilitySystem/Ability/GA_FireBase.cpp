@@ -8,6 +8,7 @@
 #include "Weapon/ShooterWeapon.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "BpexGameplayTags.h"
 #include "GameplayCueManager.h"
 #include "Weapon/BulletManagerComponent.h"
 #include "Weapon/BulletTypes.h"
@@ -18,6 +19,8 @@ UGA_FireBase::UGA_FireBase()
 
 	// 网络预测
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+	
+	ActivationOwnedTags.AddTag(FBpexGameplayTags::Get().State_Action_Firing);
 }
 
 void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,

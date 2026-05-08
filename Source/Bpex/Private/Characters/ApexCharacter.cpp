@@ -2,6 +2,8 @@
 
 
 #include "Characters/ThidPerson/ApexCharacter.h"
+
+#include "BpexGameplayTags.h"
 #include "Players/ShooterPlayerState.h"
 #include "Input/BpexInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -52,6 +54,33 @@ void AApexCharacter::BeginPlay()
 	{
 		CombatComp->OnWeaponChanged.AddDynamic(this, &AApexCharacter::OnWeaponChanged);
 	}
+}
+
+void AApexCharacter::OnFiringTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (NewCount > 0)
+	{
+		if (CurrentGate == EGate::Jogging)
+		{
+			UpdateGate(EGate::Walking);
+		}
+	}
+	else
+	{
+		if (CurrentGate == EGate::Walking)
+		{
+			UpdateGate(EGate::Jogging);
+		}
+	}
+}
+
+void AApexCharacter::RegisterGateTagCallbacks()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC) return;
+	ASC->RegisterGameplayTagEvent(FBpexGameplayTags::Get().State_Action_Firing,
+		EGameplayTagEventType::NewOrRemoved
+	).AddUObject(this, &AApexCharacter::OnFiringTagChanged);
 }
 
 void AApexCharacter::OnWeaponChanged(EGun WeaponType)
@@ -164,6 +193,9 @@ void AApexCharacter::InitAbilityActorInfo()
 	{
 		LegendAbilityComponent->InitAbilitySystem(AbilitySystemComponent);
 	}
+	
+	//注册 Tag 回调
+	RegisterGateTagCallbacks();
 }
 
 void AApexCharacter::PossessedBy(AController* NewController)
