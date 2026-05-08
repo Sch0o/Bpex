@@ -37,6 +37,10 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 	
 	Get().State_Debuff_Revealed = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("State.Debuff.Revealed"));
+	Get().State_Armed = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Armed"));
+	Get().State_UnArmed = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.UnArmed"));
 
 	/*
 	* Event Tags

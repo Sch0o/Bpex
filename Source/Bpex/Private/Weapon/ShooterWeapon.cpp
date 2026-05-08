@@ -10,6 +10,7 @@
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Net/UnrealNetwork.h"
 
 AShooterWeapon::AShooterWeapon()
 {
@@ -36,24 +37,21 @@ void AShooterWeapon::BeginPlay()
 }
 
 
-void AShooterWeapon::OnOwnerDestroyed(AActor* DestroyedActor)
-{
-	Destroy();
-}
-
-
 FTransform AShooterWeapon::CalculateProjectileSpawnTransform(const FVector& TargetLocation) const
 {
 	const FVector MuzzleLoc = WeaponMesh->GetSocketLocation(MuzzleSocketName);
-
-
+	
 	const FVector SpawnLoc = MuzzleLoc + ((TargetLocation - MuzzleLoc).GetSafeNormal() * MuzzleOffset);
-
-	// find the aim rotation vector while applying some variance to the target 
-	//const FRotator AimRot = UKismetMathLibrary::FindLookAtRotation(SpawnLoc, TargetLocation + (UKismetMathLibrary::RandomUnitVector() * AimVariance));
+	
 	const FRotator AimRot = UKismetMathLibrary::FindLookAtRotation(SpawnLoc, TargetLocation);
-	// return the built transform
 	return FTransform(AimRot, SpawnLoc, FVector::OneVector);
+	
+}
+
+void AShooterWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AShooterWeapon, ClipAmmo);
 }
 
 

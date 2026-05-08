@@ -30,36 +30,23 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category="Ammo")
 	TSubclassOf<AShooterProjectile> ProjectileClass;
-
-	/** Animation montage to play when firing this weapon */
+	
 	UPROPERTY(EditAnywhere, Category="Animation")
 	UAnimMontage* FiringMontage;
-
-	/** AnimInstance class to set for the first person character mesh when this weapon is active */
+	
 	UPROPERTY(EditAnywhere, Category="Animation")
 	TSubclassOf<UAnimInstance> AnimInstanceClass;
-
-	/** Name of the first person muzzle socket where projectiles will spawn */
-	UPROPERTY(EditAnywhere, Category="Aim")
+	
+	UPROPERTY(EditAnywhere, Category="Weapon|Socket")
 	FName MuzzleSocketName;
-
-	/** Distance ahead of the muzzle that bullets will spawn at */
+	
 	UPROPERTY(EditAnywhere, Category="Aim", meta = (ClampMin = 0, ClampMax = 1000, Units = "cm"))
 	float MuzzleOffset = 10.0f;
 
 	TObjectPtr<APawn> PawnOwner;
 
-
-public:
-	AShooterWeapon();
-
-	void SetCombatComponent(UCombatComponent* NewCombatComponent);
-
 protected:
 	virtual void BeginPlay() override;
-
-	UFUNCTION()
-	void OnOwnerDestroyed(AActor* DestroyedActor);
 
 public:
 	
@@ -69,11 +56,30 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Weapon")
 	EGun WeaponType;
 	
+	UPROPERTY(EditDefaultsOnly, Category = "Ammo")
+	EAmmoType AmmoType = EAmmoType::None;
+	
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Ammo")
+	int32 ClipAmmo = 30;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
+	int32 MaxClipAmmo = 30;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Ammo")
+	int32 AmmoPerShot = 1;
+	
+	AShooterWeapon();
+
+	void SetCombatComponent(UCombatComponent* NewCombatComponent);
+	
 	UFUNCTION(BlueprintPure, Category="Weapon")
 	USkeletalMeshComponent* GetWeaponMesh() const { return WeaponMesh; }
 
 	const TSubclassOf<UAnimInstance>& GetAnimInstanceClass() const;
+	
 	UCombatComponent* GetCombatComponent() const;
 
 	FTransform CalculateProjectileSpawnTransform(const FVector& TargetLocation) const;
+	
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 };

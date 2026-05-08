@@ -8,6 +8,7 @@
 #include "CombatComponent.generated.h"
 
 
+class UAbilitySystemComponent;
 class AShooterWeapon;
 class UAnimMontage;
 class AShooterCharacter;
@@ -102,4 +103,8 @@ protected:
 	void AttachWeaponToSocket(AShooterWeapon* Weapon, FName SocketName) const;
 	
 	USkeletalMeshComponent* GetOwnerMesh() const;
+	
+	UAbilitySystemComponent* GetASC() const;
+	
+	void SetArmedState(bool bArmed);
 };

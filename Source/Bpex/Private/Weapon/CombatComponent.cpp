@@ -6,6 +6,9 @@
 #include "Camera/CameraComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Character.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "BpexGameplayTags.h"
 
 
 UCombatComponent::UCombatComponent()
@@ -27,9 +30,13 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
+	
+	CharacterOwner = Cast<ACharacter>(GetOwner());
+	
 	WeaponSlots.Init(nullptr, NumSlots);
 	SpawnAndAttachWeapons();
+	
+	SetArmedState(false);
 }
 
 void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
@@ -60,16 +67,21 @@ void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 	UE_LOG(LogTemp, Log, TEXT("Equipped Slot[%d]: %s"), SlotIndex, *NewWeapon->GetName());
 	
 	OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
+	
+	SetArmedState(true);
 }
 
 void UCombatComponent::Holster()
 {
 	if (!CurrentWeapon) return;
 	AttachWeaponToSocket(CurrentWeapon,CurrentWeapon->UnEquippedSocketName);
+	
 	CurrentWeapon = nullptr;
 	ActiveSlotIndex = INDEX_NONE;
-	UE_LOG(LogTemp, Log, TEXT("Holstered → Unarmed"));
+	
 	OnWeaponChanged.Broadcast(EGun::UnArmed);
+	
+	SetArmedState(false);
 }
 
 void UCombatComponent::SpawnAndAttachWeapons()
@@ -87,7 +99,6 @@ void UCombatComponent::SpawnAndAttachWeapons()
 			UE_LOG(LogTemp, Warning, TEXT("SlotIndex %d out of range (NumSlots=%d)"), Info.SlotIndex, NumSlots);
 			continue;
 		}
-		// 生成武器 Actor
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.Owner = OwnerChar;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -122,6 +133,31 @@ USkeletalMeshComponent* UCombatComponent::GetOwnerMesh() const
 	return OwnerChar ? OwnerChar->GetMesh() : nullptr;
 }
 
+UAbilitySystemComponent* UCombatComponent::GetASC() const
+{
+	return UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
+}
+
+void UCombatComponent::SetArmedState(bool bArmed)
+{
+	UAbilitySystemComponent* ASC = GetASC();
+	if (!ASC) return;
+	
+	FBpexGameplayTags & Tags = FBpexGameplayTags::Get();
+	if (bArmed)
+	{
+		// 添加 Armed,移除 Unarmed
+		ASC->AddLooseGameplayTag(Tags.State_Armed);
+		ASC->RemoveLooseGameplayTag(Tags.State_UnArmed);
+	}
+	else
+	{
+		// 添加 Unarmed, 移除 Armed
+		ASC->RemoveLooseGameplayTag(Tags.State_Armed);
+		ASC->AddLooseGameplayTag(Tags.State_UnArmed);
+	}
+}
+
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                      FActorComponentTickFunction* ThisTickFunction)
 {
@@ -131,18 +167,17 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 FVector UCombatComponent::GetWeaponTargetLocation()
 {
 	if (!CharacterOwner) return FVector::ZeroVector;
-
+	
 	FHitResult OutHit;
-	// Make sure GetFirstPersonCameraComponent is accessible in Character (make it public if needed)
 	UCameraComponent* Camera = CharacterOwner->FindComponentByClass<UCameraComponent>();
 	if (!Camera) return FVector::ZeroVector;
-
+	
 	const FVector Start = Camera->GetComponentLocation();
 	const FVector End = Start + (Camera->GetForwardVector() * MaxAimDistance);
-
+	
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(CharacterOwner);
-
+	
 	GetWorld()->LineTraceSingleByChannel(OutHit, Start, End, ECC_Visibility, QueryParams);
 	return OutHit.bBlockingHit ? OutHit.ImpactPoint : OutHit.TraceEnd;
 }

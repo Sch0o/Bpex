@@ -27,6 +27,8 @@ public:
 	FGameplayTag State_UI_UsingItem_Syringe;
 	
 	FGameplayTag State_Debuff_Revealed;
+	FGameplayTag State_Armed;
+	FGameplayTag State_UnArmed;
 	
 	FGameplayTag Event_UseItem_Medkit;
 	FGameplayTag Event_UseItem_Syringe;
