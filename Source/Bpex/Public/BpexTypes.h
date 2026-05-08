@@ -42,15 +42,6 @@ struct FGateSetting
 	bool UseSeparateBrakingFriction = true;
 };
 
-UENUM(BlueprintType)
-enum class EAmmoType:uint8
-{
-	None     UMETA(DisplayName = "None"),
-	Light    UMETA(DisplayName = "Light"),
-	Heavy    UMETA(DisplayName = "Heavy"),
-	Energy   UMETA(DisplayName = "Energy"),
-	Shotgun  UMETA(DisplayName = "Shotgun"),
-	Sniper   UMETA(DisplayName = "Sniper")
-}; 
+
 
 

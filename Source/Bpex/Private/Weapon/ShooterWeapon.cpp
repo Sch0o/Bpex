@@ -12,17 +12,39 @@
 #include "GameFramework/Pawn.h"
 #include "Net/UnrealNetwork.h"
 
+int AShooterWeapon::ConsumeClipAmmo(int32 Amount)
+{
+	int32 Consumed = FMath::Min(Amount, CurrentClipAmmo);
+	CurrentClipAmmo -= Consumed;
+	OnClipAmmoChanged.Broadcast(CurrentClipAmmo, MaxClipAmmo);
+	return Consumed;
+}
+
+int32 AShooterWeapon::AddClipAmmo(int32 Amount)
+{
+	int32 Space = MaxClipAmmo - CurrentClipAmmo;
+	int32 Added = FMath::Min(Amount, Space);
+	CurrentClipAmmo += Added;
+	OnClipAmmoChanged.Broadcast(CurrentClipAmmo, MaxClipAmmo);
+	return Added;
+}
+
+void AShooterWeapon::OnRep_CurrentClipAmmo()
+{
+	OnClipAmmoChanged.Broadcast(CurrentClipAmmo, MaxClipAmmo);
+}
+
 AShooterWeapon::AShooterWeapon()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	
+
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-	
+
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Weapon Mesh"));
 	WeaponMesh->SetupAttachment(RootComponent);
 
 	WeaponMesh->SetCollisionProfileName(FName("NoCollision"));
-	
+
 	bReplicates = true;
 }
 
@@ -40,18 +62,18 @@ void AShooterWeapon::BeginPlay()
 FTransform AShooterWeapon::CalculateProjectileSpawnTransform(const FVector& TargetLocation) const
 {
 	const FVector MuzzleLoc = WeaponMesh->GetSocketLocation(MuzzleSocketName);
-	
+
 	const FVector SpawnLoc = MuzzleLoc + ((TargetLocation - MuzzleLoc).GetSafeNormal() * MuzzleOffset);
-	
+
 	const FRotator AimRot = UKismetMathLibrary::FindLookAtRotation(SpawnLoc, TargetLocation);
 	return FTransform(AimRot, SpawnLoc, FVector::OneVector);
-	
 }
 
 void AShooterWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AShooterWeapon, ClipAmmo);
+
+	DOREPLIFETIME(AShooterWeapon, CurrentClipAmmo);
 }
 
 

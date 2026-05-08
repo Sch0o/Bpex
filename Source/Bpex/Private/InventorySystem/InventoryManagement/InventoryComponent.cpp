@@ -125,6 +125,75 @@ void UInventoryComponent::GetLastSameItemSlotIndex(int32& SlotIndex, UInventoryI
 	}
 }
 
+void UInventoryComponent::ModifyAmmoCount(EAmmoType Type, int32 Delta)
+{
+	if (Delta == 0) return;
+	switch (Type)
+	{
+	case EAmmoType::Light:
+		LightAmmoCount = FMath::Max(0, LightAmmoCount + Delta);
+		OnAmmoChanged.Broadcast(EAmmoType::Light, LightAmmoCount);
+		break;
+	case EAmmoType::Heavy:
+		HeavyAmmoCount = FMath::Max(0, HeavyAmmoCount + Delta);
+		OnAmmoChanged.Broadcast(EAmmoType::Heavy, HeavyAmmoCount);
+		break;
+	default: break;
+	}
+}
+
+void UInventoryComponent::ConsumeAmmoFromSlots(EAmmoType Type, int32 Amount)
+{
+	TArray<int32>MatchingIndices;
+	TArray<FInventorySlot>& ItemArray = Items();
+	for (int32 i = 0; i < ItemArray.Num(); i++)
+	{
+		if (ItemArray[i].ItemInfo&&ItemArray[i].ItemInfo->AmmoType==Type&&ItemArray[i].Quantity>0)
+		{
+			MatchingIndices.Add(i);
+		}
+	}
+	//数量少的格子优先扣除
+	MatchingIndices.Sort([&ItemArray](int32 A, int32 B)
+	{
+		return ItemArray[A].Quantity<ItemArray[B].Quantity;
+	});
+	
+	int32 Remaining = Amount;
+	for (int32 SlotIndex : MatchingIndices)
+	{
+		if (Remaining <= 0) break;
+		FInventorySlot& Slot = Items()[SlotIndex];
+		int32 Deduct = FMath::Min(Slot.Quantity, Remaining);
+		Slot.Quantity -= Deduct;
+		Remaining -= Deduct;
+		if (Slot.Quantity <= 0)
+		{
+			Slot.Quantity = 0;
+			Slot.ItemInfo = nullptr;
+		}
+		SlotArray.MarkSlotDirty(Slot);
+	}
+}
+
+int32 UInventoryComponent::ConsumeAmmo(EAmmoType Type, int32 Amount)
+{
+	if (!GetOwner()->HasAuthority()||Amount <= 0)
+	{
+		return 0;
+	}
+	
+	int32 CurrentCount = GetAmmoCount(Type);
+	int32 Consumed = FMath::Min(Amount, CurrentCount);
+	if (Consumed <= 0) return 0;
+	// 1. 扣格子
+	ConsumeAmmoFromSlots(Type, Consumed);
+	// 2. 扣计数
+	ModifyAmmoCount(Type, -Consumed);
+	
+	return Consumed;
+}
+
 void UInventoryComponent::TryDropItem(int32 SlotIndex)
 {
 	//RPC请求
@@ -146,7 +215,8 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 	GetLastSameItemSlotIndex(SlotIndex, ItemData);
 
 	if (!ItemData->ItemClass) return;
-
+	
+	//生成掉落物
 	AActor* OwnerActor = GetOwner();
 	if (OwnerActor && GetWorld())
 	{
@@ -159,7 +229,7 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 		if (SpawnedActor)
 		{
 			ABpexItemActor* DroppedItem = Cast<ABpexItemActor>(SpawnedActor);
-			DroppedItem->SetQuantity(FMath::Min(ItemData->DefaultDropAmount,InventorySlots[SlotIndex].Quantity));
+			DroppedItem->SetQuantity(FMath::Min(ItemData->DefaultDropAmount, InventorySlots[SlotIndex].Quantity));
 
 			UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(DroppedItem->GetRootComponent());
 
@@ -176,9 +246,9 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 				PrimitiveComp->AddImpulse(Impulse, NAME_None, true);
 			}
 		}
-
+		//扣格子
 		FInventorySlot& ModifiedSlot = InventorySlots[SlotIndex];
-		int32 DropAmount = FMath::Min(ItemData->DefaultDropAmount,ModifiedSlot.Quantity);
+		int32 DropAmount = FMath::Min(ItemData->DefaultDropAmount, ModifiedSlot.Quantity);
 		ModifiedSlot.Quantity -= DropAmount;
 		if (ModifiedSlot.Quantity <= 0)
 		{
@@ -186,23 +256,10 @@ void UInventoryComponent::TryDropItem(int32 SlotIndex)
 			ModifiedSlot.ItemInfo = nullptr;
 		}
 		SlotArray.MarkSlotDirty(ModifiedSlot);
-
-		if (ItemData->ModifyAttributeEffect)
+		
+		if (ItemData->AmmoType != EAmmoType::None)
 		{
-			UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
-			if (ASC)
-			{
-				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(
-					ItemData->ModifyAttributeEffect, 1.0f, Context);
-
-				if (SpecHandle.IsValid())
-				{
-					SpecHandle.Data.Get()->SetSetByCallerMagnitude(ItemData->MagnitudeTag,
-					                                               static_cast<float>(-DropAmount));
-					ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-				}
-			}
+			ModifyAmmoCount(ItemData->AmmoType, -DropAmount);
 		}
 	}
 }
@@ -268,13 +325,13 @@ void UInventoryComponent::GetLifetimeReplicatedProps(TArray<class FLifetimePrope
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	//只同步给拥有背包的玩家
 	DOREPLIFETIME_CONDITION(UInventoryComponent, SlotArray, COND_OwnerOnly);
+	DOREPLIFETIME(UInventoryComponent, LightAmmoCount);
+	DOREPLIFETIME(UInventoryComponent, HeavyAmmoCount);
 }
 
 bool UInventoryComponent::Server_RequestPickUpItem_Validate(ABpexItemActor* ItemToPickUp)
 {
-	//传入物品为空，或者已经销毁
 	if (!ItemToPickUp) return false;
 	return true;
 }
@@ -284,7 +341,8 @@ void UInventoryComponent::Server_RequestPickUpItem_Implementation(ABpexItemActor
 	UInventoryItemData* ItemData = ItemToPickUp->GetItemData();
 	if (ItemData == nullptr)
 	{
-		UE_LOG(LogTemp,Warning,TEXT("UInventoryComponent::Server_RequestPickUpItem_Implementation::ItemData is null"));
+		UE_LOG(LogTemp, Warning,
+		       TEXT("UInventoryComponent::Server_RequestPickUpItem_Implementation::ItemData is null"));
 	}
 	//地上有多少
 	int32 QuantityOnGround = ItemToPickUp->GetQuantity();
@@ -294,23 +352,11 @@ void UInventoryComponent::Server_RequestPickUpItem_Implementation(ABpexItemActor
 	TryAddItem(ItemData, QuantityOnGround);
 
 	int32 AmountAdded = OriginalQuantity - QuantityOnGround;
-	if (AmountAdded > 0 && ItemData->ModifyAttributeEffect)
+	
+	//子弹同步
+	if (AmountAdded > 0 && ItemData->AmmoType!=EAmmoType::None)
 	{
-		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
-		if (ASC)
-		{
-			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-			Context.AddInstigator(GetOwner(), GetOwner());
-			FGameplayEffectSpecHandle SpecHandle = ASC->
-				MakeOutgoingSpec(ItemData->ModifyAttributeEffect, 1.0f, Context);
-
-			if (SpecHandle.IsValid())
-			{
-				// 传入增加的数量 (正数)
-				SpecHandle.Data.Get()->SetSetByCallerMagnitude(ItemData->MagnitudeTag, static_cast<float>(AmountAdded));
-				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-			}
-		}
+		ModifyAmmoCount(ItemData->AmmoType, AmountAdded);
 	}
 
 	//全部销毁
@@ -332,7 +378,6 @@ void UInventoryComponent::Server_RequestPickUpItem_Implementation(ABpexItemActor
 	}
 }
 
-// ── UI ──
 
 void UInventoryComponent::InteractInventory()
 {
@@ -411,9 +456,18 @@ void UInventoryComponent::OnSlotUpdated()
 	OnInventoryUpdated.Broadcast();
 }
 
-// ═════════════════════════════════════════════
-//  Helper
-// ═════════════════════════════════════════════
+int32 UInventoryComponent::GetAmmoCount(EAmmoType AmmoType) const
+{
+	switch (AmmoType)
+	{
+	case EAmmoType::Light:
+		return LightAmmoCount;
+	case EAmmoType::Heavy:
+		return HeavyAmmoCount;
+	default:
+		return 0;
+	}
+}
 
 float UInventoryComponent::GetInventoryItemUseDuration(int32 SlotIndex) const
 {
@@ -482,13 +536,24 @@ int32 UInventoryComponent::GetTotalItemCount(UInventoryItemData* ItemData) const
 	}
 	return Total;
 }
+
+void UInventoryComponent::OnRep_LightAmmo()
+{
+	OnAmmoChanged.Broadcast(EAmmoType::Light, LightAmmoCount);
+}
+
+void UInventoryComponent::OnRep_HeavyAmmo()
+{
+	OnAmmoChanged.Broadcast(EAmmoType::Heavy, HeavyAmmoCount);
+}
+
 int32 UInventoryComponent::ConsumeItemByPriority(UInventoryItemData* ItemData, int32 AmountToConsume)
 {
 	if (!GetOwner()->HasAuthority())
 	{
 		return AmountToConsume; // 客户端直接返回期望值，不动库存
 	}
-	
+
 	if (!ItemData || AmountToConsume <= 0) return 0;
 	//── Step 1: 收集所有含有该物品的格子索引 ──
 	TArray<int32> MatchingIndices;
@@ -512,7 +577,8 @@ int32 UInventoryComponent::ConsumeItemByPriority(UInventoryItemData* ItemData, i
 	{
 		if (Remaining <= 0) break;
 		FInventorySlot& Slot = Items()[SlotIndex];
-		int32 DeductAmount = FMath::Min(Slot.Quantity, Remaining);Slot.Quantity -= DeductAmount;
+		int32 DeductAmount = FMath::Min(Slot.Quantity, Remaining);
+		Slot.Quantity -= DeductAmount;
 		Remaining -= DeductAmount;
 		// 格子扣空了就清除物品信息
 		if (Slot.Quantity <= 0)
@@ -524,14 +590,10 @@ int32 UInventoryComponent::ConsumeItemByPriority(UInventoryItemData* ItemData, i
 	}
 	int32 ActualConsumed = AmountToConsume - Remaining;
 	UE_LOG(LogTemp, Log, TEXT("ConsumeItemByPriority: Requested=%d, Consumed=%d, Item=%s"),
-		AmountToConsume, ActualConsumed, *ItemData->ItemID.ToString());
+	       AmountToConsume, ActualConsumed, *ItemData->ItemID.ToString());
 	return ActualConsumed;
 }
 
-
-// ═════════════════════════════════════════════
-//  FInventorySlot 回调实现
-// ═════════════════════════════════════════════
 
 void FInventorySlot::PreReplicatedRemove(const FInventorySlotArray& InArraySerializer)
 {

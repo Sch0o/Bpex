@@ -42,7 +42,7 @@ void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
 	if (IsLocallyControlled())
 	{
 		InitLocalAmmoCount();
-		AutoFireTick(); // 立即开第一枪
+		AutoFireTick(); 
 		GetWorld()->GetTimerManager().SetTimer(
 			AutoFireTimerHandle, this,
 			&UGA_FireBase::AutoFireTick, TimeBetweenShots, true);

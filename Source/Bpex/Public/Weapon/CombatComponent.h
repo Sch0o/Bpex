@@ -8,6 +8,7 @@
 #include "CombatComponent.generated.h"
 
 
+enum class EAmmoType : uint8;
 class UAbilitySystemComponent;
 class AShooterWeapon;
 class UAnimMontage;
@@ -77,6 +78,8 @@ protected:
 
 public:
 	
+	int32 ConsumeAmmo(EAmmoType AmmoType,int32 Amount);
+	
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
 	FOnWeaponChanged OnWeaponChanged;
 	
@@ -91,7 +94,6 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	AShooterWeapon* GetCurrentWeapon() const { return CurrentWeapon; }
-	
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetWeaponTargetLocation();

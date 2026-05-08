@@ -4,6 +4,7 @@
 #include "GameplayTagContainer.h"
 #include "GameplayEffect.h"
 #include "Engine/DataAsset.h"
+#include "Weapon/AmmoTypes.h"
 #include "InventoryTypes.generated.h"
 
 
@@ -28,6 +29,8 @@ class BPEX_API UInventoryItemData : public UPrimaryDataAsset
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
 	EItemType ItemType = EItemType::Ammo;
+	
+	EAmmoType AmmoType = EAmmoType::None;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
 	FName ItemID;

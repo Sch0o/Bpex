@@ -5,8 +5,8 @@
 #include "CoreMinimal.h"
 #include "BpexTypes.h"
 #include "GameFramework/Actor.h"
-#include "ShooterWeaponHolder.h"
 #include "Animation/AnimInstance.h"
+#include "AmmoTypes.h"
 #include "ShooterWeapon.generated.h"
 
 class UCombatComponent;
@@ -15,6 +15,8 @@ class AShooterProjectile;
 class USkeletalMeshComponent;
 class UAnimMontage;
 class UAnimInstance;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnClipAmmoChanged, int32, NewClip, int32, MaxClip);
 
 UCLASS(abstract)
 class BPEX_API AShooterWeapon : public AActor
@@ -44,9 +46,11 @@ protected:
 	float MuzzleOffset = 10.0f;
 
 	TObjectPtr<APawn> PawnOwner;
-
-protected:
+	
 	virtual void BeginPlay() override;
+	
+	UFUNCTION()
+	void OnRep_CurrentClipAmmo();
 
 public:
 	
@@ -56,17 +60,24 @@ public:
 	UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Weapon")
 	EGun WeaponType;
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Ammo")
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon|Ammo")
 	EAmmoType AmmoType = EAmmoType::None;
 	
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Ammo")
-	int32 ClipAmmo = 30;
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentClipAmmo, BlueprintReadOnly, Category = "Weapon|Ammo")
+	int32 CurrentClipAmmo = 30;
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ammo")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Ammo")
 	int32 MaxClipAmmo = 30;
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Ammo")
-	int32 AmmoPerShot = 1;
+	int32 ConsumeClipAmmo(int32 Amount = 1);
+	int32 AddClipAmmo(int32 Amount);
+	
+	bool IsClipEmpty()const {return CurrentClipAmmo <=0; }
+	
+	bool IsClipFull()const {return CurrentClipAmmo >= MaxClipAmmo;}
+	
+	UPROPERTY(BlueprintAssignable)
+	FOnClipAmmoChanged OnClipAmmoChanged;
 	
 	AShooterWeapon();
 

@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
 #include "Types/InventoryTypes.h"
+#include "Weapon/AmmoTypes.h"
 #include "InventoryComponent.generated.h"
 
 
@@ -17,6 +18,8 @@ class UInventoryBase;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemUseStartedSignature, float, UseDuration);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAmmoChanged, EAmmoType, AmmoType, int32, NewCount);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class BPEX_API UInventoryComponent : public UActorComponent
@@ -65,8 +68,7 @@ public:
 
 	UFUNCTION(Server, Reliable, WithValidation, Blueprintable, Category="Inventory")
 	void Server_RequestDropItem(int32 SlotIndex);
-
-	//向服务端请求使用item
+	
 	UFUNCTION(Server, Reliable, WithValidation, Category="Inventory")
 	void Server_RequestUseItem(int32 SlotIndex);
 
@@ -94,9 +96,24 @@ public:
 	TArray<FInventorySlot>& Items() { return SlotArray.Items; }
 
 	const TArray<FInventorySlot>& Items() const { return SlotArray.Items; }
-
+	
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Ammo")
+	int32 GetAmmoCount(EAmmoType AmmoType) const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Inventory|Ammo")
+	int32 ConsumeAmmo(EAmmoType Type, int32 Amount);
+	
+	UPROPERTY(BlueprintAssignable, Category = "Inventory|Events")
+	FOnAmmoChanged OnAmmoChanged;
+	
 protected:
 	virtual void BeginPlay() override;
+	
+	UPROPERTY(Replicated = OnRep_LightAmmo)
+	int32 LightAmmoCount = 0;
+	
+	UPROPERTY(Replicated = OnRep_HeavyAmmo)
+	int32 HeavyAmmoCount = 0;
 
 	UPROPERTY(EditDefaultsOnly, Category="Inventory")
 	float ThrowForce = 600.0f;
@@ -111,6 +128,19 @@ protected:
 	int32 GetTotalItemCount(UInventoryItemData* ItemData) const;
 
 private:
+	
+	UFUNCTION()
+	void OnRep_LightAmmo();
+	
+	UFUNCTION()
+	void OnRep_HeavyAmmo();
+	
+	//修改子弹计数/广播
+	void ModifyAmmoCount(EAmmoType Type, int32 Delta);
+	
+	//从slot中扣除指定类型子弹
+	void ConsumeAmmoFromSlots(EAmmoType Type,int32 Amount);
+	
 	void ConstructInventory();
 
 	void GetLastSameItemSlotIndex(int32& SlotIndex, UInventoryItemData* ItemData);
@@ -125,4 +155,5 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category="Inventory")
 	FGameplayTag InventoryOpenTag;
+	
 };
