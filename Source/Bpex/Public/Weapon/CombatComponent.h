@@ -57,9 +57,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat|Runtime")
 	TArray<TObjectPtr<AShooterWeapon>> WeaponSlots;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Combat|Runtime")
+	UPROPERTY(ReplicatedUsing = OnRep_ActiveSlotIndex)
 	int32 ActiveSlotIndex = INDEX_NONE;
-	
 	
 	UPROPERTY(Transient)
 	TObjectPtr<AShooterWeapon> CurrentWeapon = nullptr;
@@ -88,6 +87,9 @@ public:
 	//扣弹夹子弹
 	int32 ConsumeClipAmmo(int32 Amount =1);
 	
+	UFUNCTION(Server, Reliable)
+	void Server_ConsumeClipAmmo(int32 Amount);
+	
 	//换弹
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void Reload();
@@ -100,7 +102,7 @@ public:
 	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
-
+	
 	UFUNCTION(BlueprintCallable)
 	void EquipSlotWeapon(int32 SlotIndex);
 	
@@ -115,8 +117,21 @@ public:
 
 protected:
 	
+	UFUNCTION(Server,Reliable)
+	void Server_EquipSlotWeapon(int32 SlotIndex);
+	
+	void Internal_EquipSlotWeapon(int32 SlotIndex);
+	
+	UFUNCTION(Server,Reliable)
+	void Server_Holster();
+	
+	void Internal_Holster();
+	
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComp = nullptr;
+	
+	UFUNCTION()
+	void OnRep_ActiveSlotIndex();
 	
 	UFUNCTION(Server,Reliable)
 	void Server_Reload();

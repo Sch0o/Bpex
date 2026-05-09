@@ -132,11 +132,9 @@ void UInventoryComponent::ModifyAmmoCount(EAmmoType Type, int32 Delta)
 	{
 	case EAmmoType::Light:
 		LightAmmoCount = FMath::Max(0, LightAmmoCount + Delta);
-		OnAmmoChanged.Broadcast(EAmmoType::Light, LightAmmoCount);
 		break;
 	case EAmmoType::Heavy:
 		HeavyAmmoCount = FMath::Max(0, HeavyAmmoCount + Delta);
-		OnAmmoChanged.Broadcast(EAmmoType::Heavy, HeavyAmmoCount);
 		break;
 	default: break;
 	}

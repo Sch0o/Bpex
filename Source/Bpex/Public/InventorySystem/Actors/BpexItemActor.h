@@ -32,10 +32,10 @@ protected:
 
 public:
 	//物品类型
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data", meta = (ExposeOnSpawn = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="ItemData", meta = (ExposeOnSpawn = "true"))
 	UInventoryItemData* ItemData;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Item Data", meta = (ExposeOnSpawn = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="ItemData", meta = (ExposeOnSpawn = "true"))
 	int32 Quantity;
 
 	UInventoryItemData* GetItemData() const { return ItemData; }

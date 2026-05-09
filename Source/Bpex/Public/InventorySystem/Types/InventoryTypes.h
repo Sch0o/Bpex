@@ -30,6 +30,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
 	EItemType ItemType = EItemType::Ammo;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ammo")
 	EAmmoType AmmoType = EAmmoType::None;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item Data")
@@ -61,9 +62,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Sorting")
 	int SortPriority = 0;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS")
-	TSubclassOf<UGameplayEffect> ModifyAttributeEffect;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GAS")
 	FGameplayTag MagnitudeTag;

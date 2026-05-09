@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "MVVMViewModelBase.h"
+#include "Weapon/AmmoTypes.h"
 #include "ShooterViewModel.generated.h"
 
 class UCombatComponent;

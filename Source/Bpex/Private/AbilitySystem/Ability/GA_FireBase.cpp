@@ -145,20 +145,21 @@ bool UGA_FireBase::TryConsumeLocalAmmo()
 
 	// 本地预扣除
 	LocalAmmoCount--;
-
+	
+	UCombatComponent* Combat = AvatarActor->FindComponentByClass<UCombatComponent>();
+	if (!Combat)return false;
+	
 	if (AvatarActor->HasAuthority())
 	{
-		// 3. 使用 AvatarActor 来寻找组件
-		UCombatComponent* Combat = AvatarActor->FindComponentByClass<UCombatComponent>();
-		if (Combat)
+		int32 Consumed = Combat->ConsumeClipAmmo(1);
+		if (Consumed <= 0) 
 		{
-			int32 Consumed = Combat->ConsumeClipAmmo(1);
-			if (Consumed <= 0) 
-			{
-				LocalAmmoCount++; 
-				return false;
-			}
+			LocalAmmoCount++; 
+			return false;
 		}
+	}else
+	{
+		Combat->Server_ConsumeClipAmmo(1);
 	}
     
 	return true;

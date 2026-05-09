@@ -42,9 +42,12 @@ void UCombatComponent::BeginPlay()
 	}
 
 	//初始化武器槽。生成默认武器
-	WeaponSlots.Init(nullptr, NumSlots);
-	SpawnAndAttachWeapons();
-
+	if (GetOwner()->HasAuthority())
+	{
+		WeaponSlots.Init(nullptr, NumSlots);
+		SpawnAndAttachWeapons();
+	}
+	
 	//设置状态为未装备武器
 	SetArmedState(false);
 }
@@ -53,11 +56,12 @@ int32 UCombatComponent::ConsumeClipAmmo(int32 Amount)
 {
 	if (!CurrentWeapon) return 0;
 	int32 Consumed = CurrentWeapon->ConsumeClipAmmo(Amount);
-	if (GetOwner()->HasAuthority()&&Consumed > 0)
-	{
-		BroadcastAmmoUI();
-	}
 	return Consumed;
+}
+
+void UCombatComponent::Server_ConsumeClipAmmo_Implementation(int32 Amount)
+{
+	ConsumeClipAmmo(Amount);
 }
 
 void UCombatComponent::Reload()
@@ -103,61 +107,76 @@ EAmmoType UCombatComponent::GetCurrentAmmoType() const
 	return CurrentWeapon ? CurrentWeapon->AmmoType : EAmmoType::None;
 }
 
+void UCombatComponent::Server_Holster_Implementation()
+{
+	Internal_Holster();
+}
+
+void UCombatComponent::Server_EquipSlotWeapon_Implementation(int32 SlotIndex)
+{
+	Internal_EquipSlotWeapon(SlotIndex);
+}
+
 void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 {
 	if (SlotIndex == ActiveSlotIndex) return;
-
-	if (!WeaponSlots.IsValidIndex(SlotIndex))
+	if (GetOwner()->HasAuthority())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("EquipSlot: Invalid slot %d"), SlotIndex);
-		return;
+		Internal_EquipSlotWeapon(SlotIndex);
 	}
+	else
+	{
+		Server_EquipSlotWeapon(SlotIndex);
+	}
+}
 
+void UCombatComponent::Internal_EquipSlotWeapon(int32 SlotIndex)
+{
+	if (SlotIndex == ActiveSlotIndex) return;
+	if (!WeaponSlots.IsValidIndex(SlotIndex)) return;
 	AShooterWeapon* NewWeapon = WeaponSlots[SlotIndex];
-	if (!NewWeapon)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("EquipSlot: Slot %d is empty"), SlotIndex);
-		return;
-	}
-
-	
+	if (!NewWeapon) return;
+	// 收起当前武器
 	if (CurrentWeapon)
 	{
-		//解绑新武器
 		UnbindWeaponAmmoDelegate(CurrentWeapon);
-		//将当前武器放到unequipped时位置
 		AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
 	}
-	//绑定新武器
-	BindWeaponAmmoDelegate(CurrentWeapon);
-	//手持新武器
+	// 装备新武器
+	BindWeaponAmmoDelegate(NewWeapon); 
 	AttachWeaponToSocket(NewWeapon, EquippedSocketName);
 	CurrentWeapon = NewWeapon;
-	ActiveSlotIndex = SlotIndex;
-	UE_LOG(LogTemp, Log, TEXT("Equipped Slot[%d]: %s"), SlotIndex, *NewWeapon->GetName());
-
-	//通知改变动画层
+	ActiveSlotIndex = SlotIndex; 
+	// 服务器本地表现
 	OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
-	//通知ui更新弹药数
 	BroadcastAmmoUI();
-	//更新角色状态为持有武器
 	SetArmedState(true);
 }
+
+void UCombatComponent::Internal_Holster()
+{
+	if (!CurrentWeapon) return;
+	UnbindWeaponAmmoDelegate(CurrentWeapon);
+	AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
+	CurrentWeapon = nullptr;
+	ActiveSlotIndex = INDEX_NONE; 
+	OnWeaponChanged.Broadcast(EGun::UnArmed);
+	OnAmmoUIUpdated.Broadcast(0, 0);
+	SetArmedState(false);
+}
+
 
 void UCombatComponent::Holster()
 {
 	if (!CurrentWeapon) return;
-	
-	UnbindWeaponAmmoDelegate(CurrentWeapon);
-	AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
-
-	CurrentWeapon = nullptr;
-	ActiveSlotIndex = INDEX_NONE;
-
-	OnWeaponChanged.Broadcast(EGun::UnArmed);
-	OnAmmoUIUpdated.Broadcast(1, 0);
-
-	SetArmedState(false);
+	if (GetOwner()->HasAuthority())
+	{
+		Internal_Holster();
+	}
+	else
+	{
+		Server_Holster();
+	}
 }
 
 void UCombatComponent::Server_Reload_Implementation()
@@ -254,6 +273,7 @@ void UCombatComponent::UnbindWeaponAmmoDelegate(AShooterWeapon* Weapon)
 
 void UCombatComponent::OnWeaponClipAmmoChanged(int32 NewClip, int32 MaxClip)
 {
+	UE_LOG(LogTemp, Warning, TEXT("UCombatComponent::OnWeaponClipAmmoChanged::NewClipAmmo: %d"), NewClip);
 	BroadcastAmmoUI();
 }
 
@@ -279,4 +299,28 @@ FVector UCombatComponent::GetWeaponTargetLocation()
 
 	GetWorld()->LineTraceSingleByChannel(OutHit, Start, End, ECC_Visibility, QueryParams);
 	return OutHit.bBlockingHit ? OutHit.ImpactPoint : OutHit.TraceEnd;
+}
+
+void UCombatComponent::OnRep_ActiveSlotIndex()
+{
+	if (CurrentWeapon)
+	{
+		UnbindWeaponAmmoDelegate(CurrentWeapon);
+	}
+	
+	CurrentWeapon = nullptr;
+	
+	if (WeaponSlots.IsValidIndex(ActiveSlotIndex)&&WeaponSlots[ActiveSlotIndex])
+	{
+		CurrentWeapon = WeaponSlots[ActiveSlotIndex];
+		BindWeaponAmmoDelegate(CurrentWeapon);
+		OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
+		BroadcastAmmoUI();
+		SetArmedState(true);
+	}else
+	{
+		OnWeaponChanged.Broadcast(EGun::UnArmed);
+		OnAmmoUIUpdated.Broadcast(0, 0);
+		SetArmedState(false);
+	}
 }
