@@ -57,11 +57,6 @@ bool UCombatComponent::IsSlotValid(int SlotIndex) const
 	return WeaponSlots.IsValidIndex(SlotIndex) && WeaponSlots[SlotIndex] != nullptr;
 }
 
-void UCombatComponent::LocalEquipSlotWeapon(int32 SlotIndex)
-{
-	Internal_EquipSlotWeapon(SlotIndex);
-}
-
 int32 UCombatComponent::ConsumeClipAmmo(int32 Amount)
 {
 	if (!CurrentWeapon) return 0;
@@ -117,33 +112,13 @@ EAmmoType UCombatComponent::GetCurrentAmmoType() const
 	return CurrentWeapon ? CurrentWeapon->AmmoType : EAmmoType::None;
 }
 
-void UCombatComponent::Server_Holster_Implementation()
-{
-	Internal_Holster();
-}
-
-void UCombatComponent::Server_EquipSlotWeapon_Implementation(int32 SlotIndex)
-{
-	Internal_EquipSlotWeapon(SlotIndex);
-}
-
 void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 {
+	//必须是新槽位
 	if (SlotIndex == ActiveSlotIndex) return;
-	if (GetOwner()->HasAuthority())
-	{
-		Internal_EquipSlotWeapon(SlotIndex);
-	}
-	else
-	{
-		Server_EquipSlotWeapon(SlotIndex);
-	}
-}
-
-void UCombatComponent::Internal_EquipSlotWeapon(int32 SlotIndex)
-{
-	if (SlotIndex == ActiveSlotIndex) return;
+	//验证槽位是否合法
 	if (!WeaponSlots.IsValidIndex(SlotIndex)) return;
+	
 	AShooterWeapon* NewWeapon = WeaponSlots[SlotIndex];
 	if (!NewWeapon) return;
 	// 收起当前武器
@@ -157,13 +132,14 @@ void UCombatComponent::Internal_EquipSlotWeapon(int32 SlotIndex)
 	AttachWeaponToSocket(NewWeapon, EquippedSocketName);
 	CurrentWeapon = NewWeapon;
 	ActiveSlotIndex = SlotIndex;
+	
 	// 服务器本地表现
 	OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
 	BroadcastAmmoUI();
 	SetArmedState(true);
 }
 
-void UCombatComponent::Internal_Holster()
+void UCombatComponent::Holster()
 {
 	if (!CurrentWeapon) return;
 	UnbindWeaponAmmoDelegate(CurrentWeapon);
@@ -173,20 +149,6 @@ void UCombatComponent::Internal_Holster()
 	OnWeaponChanged.Broadcast(EGun::UnArmed);
 	OnAmmoUIUpdated.Broadcast(0, 0);
 	SetArmedState(false);
-}
-
-
-void UCombatComponent::Holster()
-{
-	if (!CurrentWeapon) return;
-	if (GetOwner()->HasAuthority())
-	{
-		Internal_Holster();
-	}
-	else
-	{
-		Server_Holster();
-	}
 }
 
 void UCombatComponent::Server_Reload_Implementation()
@@ -313,9 +275,18 @@ FVector UCombatComponent::GetWeaponTargetLocation()
 
 void UCombatComponent::OnRep_ActiveSlotIndex()
 {
+	
+	//ActiveSlotIndex更新时，CurrentWeapon和ActiveSlotIndex相对应则说明预测成功
+	if (CurrentWeapon && WeaponSlots.IsValidIndex(ActiveSlotIndex)&&CurrentWeapon == WeaponSlots[ActiveSlotIndex])
+	{
+		return;
+	}
+	
+	//状态不一致，需要纠正,以服务器为准
 	if (CurrentWeapon)
 	{
 		UnbindWeaponAmmoDelegate(CurrentWeapon);
+		AttachWeaponToSocket(CurrentWeapon,CurrentWeapon->UnEquippedSocketName);	
 	}
 
 	CurrentWeapon = nullptr;

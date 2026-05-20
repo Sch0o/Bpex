@@ -3,6 +3,7 @@
 
 #include "Characters/ThidPerson/ApexCharacter.h"
 
+#include "AbilitySystemBlueprintLibrary.h"
 #include "BpexGameplayTags.h"
 #include "Players/ShooterPlayerState.h"
 #include "Input/BpexInputComponent.h"
@@ -13,9 +14,11 @@
 #include "Net/UnrealNetwork.h"
 #include "Weapon/CombatComponent.h"
 #include "AbilitySystem/LegendAbilityComponent.h"
+#include "AbilitySystem/Ability/GA_WeaponSwap.h"
 #include "Players/ShooterPlayerController.h"
 #include "Weapon/BulletManagerComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Interface/AnimationBlueprintInterface.h"
 
 AApexCharacter::AApexCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -79,7 +82,7 @@ void AApexCharacter::RegisterGateTagCallbacks()
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	if (!ASC) return;
 	ASC->RegisterGameplayTagEvent(FBpexGameplayTags::Get().State_Action_Firing,
-		EGameplayTagEventType::NewOrRemoved
+	                              EGameplayTagEventType::NewOrRemoved
 	).AddUObject(this, &AApexCharacter::OnFiringTagChanged);
 }
 
@@ -193,7 +196,7 @@ void AApexCharacter::InitAbilityActorInfo()
 	{
 		LegendAbilityComponent->InitAbilitySystem(AbilitySystemComponent);
 	}
-	
+
 	//注册 Tag 回调
 	RegisterGateTagCallbacks();
 }
@@ -368,18 +371,22 @@ void AApexCharacter::DoUnAim()
 void AApexCharacter::SwitchWeapon(const FInputActionValue& Value)
 {
 	int32 Selection = FMath::TruncToInt(Value.Get<float>());
-
-	USkeletalMeshComponent* MeshComp = GetMesh();
-	if (!MeshComp) return;
-
+	UAbilitySystemComponent*ASC = GetAbilitySystemComponent();
+	if (!ASC) return;
+	
+	FGameplayEventData EventData;
 	if (Selection == 3)
 	{
-		CombatComp->Holster();
+		// 空手：传-1
+		EventData.EventMagnitude = static_cast<float>(UGA_WeaponSwap::HOLSTER_SLOT);
 	}
 	else
 	{
-		CombatComp->EquipSlotWeapon(Selection - 1);
+		// 武器槽：Selection1->SlotIndex 0, Selection 2->SlotIndex 1
+		EventData.EventMagnitude = static_cast<float>(Selection - 1);
 	}
+	
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, FBpexGameplayTags::Get().Event_Weapon_Swap,EventData);
 }
 
 void AApexCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const

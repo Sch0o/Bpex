@@ -29,10 +29,13 @@ public:
 	FGameplayTag State_Debuff_Revealed;
 	FGameplayTag State_Armed;
 	FGameplayTag State_UnArmed;
+	
 	FGameplayTag State_Action_Firing;
+	FGameplayTag State_Action_Swapping;
 	
 	FGameplayTag Event_UseItem_Medkit;
 	FGameplayTag Event_UseItem_Syringe;
+	FGameplayTag Event_Weapon_Swap;
 	
 	FGameplayTag Ability_Item_Syringe;
 	FGameplayTag Ability_Item_Medkit;
@@ -51,6 +54,9 @@ public:
 	
 	FGameplayTag InputTag_LMB;
 	FGameplayTag InputTag_RMB;
+	FGameplayTag InputTag_Weapon_Slot1;
+	FGameplayTag InputTag_Weapon_Slot2;
+	FGameplayTag InputTag_Weapon_Holster;
 	FGameplayTag InputTag_1;
 	FGameplayTag InputTag_2;
 	FGameplayTag InputTag_3;

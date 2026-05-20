@@ -43,6 +43,8 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("State.UnArmed"));
 	Get().State_Action_Firing = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("State.Action.Firing"), FString("State for Action Firing"));
+	Get().State_Action_Swapping = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Action.Swapping"),FString("State for Action Swapping"));
 
 	/*
 	* Event Tags
@@ -52,6 +54,9 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 	
 	Get().Event_UseItem_Syringe = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Event.UseItem.Syringe"),FString("Event for Using Syringe"));
+	
+	Get().Event_Weapon_Swap = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Event.Weapon.Swap"),FString("Event for Weapon Swapping"));
 	
 	/*
 	* Event Tags
@@ -91,9 +96,16 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 	Get().InputTag_4 = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("InputTag.4"), FString("Input Tag for 4 key"));
 	
+	Get().InputTag_Weapon_Slot1 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Weapon.Slot1"),FString("Input Tag for Weapon Slot1"));
+	Get().InputTag_Weapon_Slot2 = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Weapon.Slot2"),FString("Input Tag for Weapon Slot2"));
+	Get().InputTag_Weapon_Holster = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Weapon.Holster"),FString("Input Tag for Holster"));
+	
 	
 	Get().Item_UseDuration = UGameplayTagsManager::Get().AddNativeGameplayTag(
-		FName("Item.UseDuration"),FString("Item UseDuration"));
+	FName("Item.UseDuration"),FString("Item UseDuration"));
 	
 	Get().Item_UseDuration = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Item.SlotIndex"),FString("Item SlotIndex"));

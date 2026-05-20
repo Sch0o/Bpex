@@ -89,9 +89,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	bool IsSlotValid(int SlotIndex) const;
 	
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void LocalEquipSlotWeapon(int32 SlotIndex);
-	
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	bool HasWeaponEquipped() const {return ActiveSlotIndex != INDEX_NONE;}
 	
 	//弹药UI更新委托
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
@@ -132,16 +131,6 @@ public:
 	FVector GetWeaponTargetLocation();
 
 protected:
-	
-	UFUNCTION(Server,Reliable)
-	void Server_EquipSlotWeapon(int32 SlotIndex);
-	
-	void Internal_EquipSlotWeapon(int32 SlotIndex);
-	
-	UFUNCTION(Server,Reliable)
-	void Server_Holster();
-	
-	void Internal_Holster();
 	
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComp = nullptr;

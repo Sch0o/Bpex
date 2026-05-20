@@ -21,6 +21,8 @@ UGA_FireBase::UGA_FireBase()
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
 	
 	ActivationOwnedTags.AddTag(FBpexGameplayTags::Get().State_Action_Firing);
+	
+	ActivationBlockedTags.AddTag(FBpexGameplayTags::Get().State_Action_Firing);
 }
 
 void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
