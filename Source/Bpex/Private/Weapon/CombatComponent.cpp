@@ -47,9 +47,19 @@ void UCombatComponent::BeginPlay()
 		WeaponSlots.Init(nullptr, NumSlots);
 		SpawnAndAttachWeapons();
 	}
-	
+
 	//设置状态为未装备武器
 	SetArmedState(false);
+}
+
+bool UCombatComponent::IsSlotValid(int SlotIndex) const
+{
+	return WeaponSlots.IsValidIndex(SlotIndex) && WeaponSlots[SlotIndex] != nullptr;
+}
+
+void UCombatComponent::LocalEquipSlotWeapon(int32 SlotIndex)
+{
+	Internal_EquipSlotWeapon(SlotIndex);
 }
 
 int32 UCombatComponent::ConsumeClipAmmo(int32 Amount)
@@ -70,24 +80,24 @@ void UCombatComponent::Reload()
 	{
 		Server_Reload();
 		return;
-	} 
-	if (!CurrentWeapon&&!InventoryComp) return;
-	
+	}
+	if (!CurrentWeapon && !InventoryComp) return;
+
 	//弹匣满则不换弹
 	if (CurrentWeapon->IsClipFull()) return;
-	
+
 	EAmmoType Type = CurrentWeapon->AmmoType;
 	int32 AmmoNeeded = CurrentWeapon->MaxClipAmmo - CurrentWeapon->CurrentClipAmmo;
 	int32 AmmoAvailable = InventoryComp->GetAmmoCount(Type);
 	int32 AmmoToLoad = FMath::Min(AmmoNeeded, AmmoAvailable);
-	
+
 	//背包无子弹，无法换弹
 	if (AmmoToLoad <= 0) return;
 	//从背包中取子弹
 	int32 Consumed = InventoryComp->ConsumeAmmo(Type, AmmoToLoad);
 	//填入弹匣
 	CurrentWeapon->AddClipAmmo(Consumed);
-	
+
 	BroadcastAmmoUI();
 }
 
@@ -143,10 +153,10 @@ void UCombatComponent::Internal_EquipSlotWeapon(int32 SlotIndex)
 		AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
 	}
 	// 装备新武器
-	BindWeaponAmmoDelegate(NewWeapon); 
+	BindWeaponAmmoDelegate(NewWeapon);
 	AttachWeaponToSocket(NewWeapon, EquippedSocketName);
 	CurrentWeapon = NewWeapon;
-	ActiveSlotIndex = SlotIndex; 
+	ActiveSlotIndex = SlotIndex;
 	// 服务器本地表现
 	OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
 	BroadcastAmmoUI();
@@ -159,7 +169,7 @@ void UCombatComponent::Internal_Holster()
 	UnbindWeaponAmmoDelegate(CurrentWeapon);
 	AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
 	CurrentWeapon = nullptr;
-	ActiveSlotIndex = INDEX_NONE; 
+	ActiveSlotIndex = INDEX_NONE;
 	OnWeaponChanged.Broadcast(EGun::UnArmed);
 	OnAmmoUIUpdated.Broadcast(0, 0);
 	SetArmedState(false);
@@ -307,17 +317,18 @@ void UCombatComponent::OnRep_ActiveSlotIndex()
 	{
 		UnbindWeaponAmmoDelegate(CurrentWeapon);
 	}
-	
+
 	CurrentWeapon = nullptr;
-	
-	if (WeaponSlots.IsValidIndex(ActiveSlotIndex)&&WeaponSlots[ActiveSlotIndex])
+
+	if (WeaponSlots.IsValidIndex(ActiveSlotIndex) && WeaponSlots[ActiveSlotIndex])
 	{
 		CurrentWeapon = WeaponSlots[ActiveSlotIndex];
 		BindWeaponAmmoDelegate(CurrentWeapon);
 		OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
 		BroadcastAmmoUI();
 		SetArmedState(true);
-	}else
+	}
+	else
 	{
 		OnWeaponChanged.Broadcast(EGun::UnArmed);
 		OnAmmoUIUpdated.Broadcast(0, 0);

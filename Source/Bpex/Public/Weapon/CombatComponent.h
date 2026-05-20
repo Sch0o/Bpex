@@ -77,6 +77,22 @@ protected:
 	float MaxAimDistance = 10000.f;
 
 public:
+	
+	//获取当前激活槽位
+	UFUNCTION(Blueprintable,Category = "Combat")
+	int32 GetActiveSlotIndex() const { return ActiveSlotIndex; }
+	
+	//获取武器槽位数
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	int32 GetNumSlots() const {return NumSlots;}
+	
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	bool IsSlotValid(int SlotIndex) const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void LocalEquipSlotWeapon(int32 SlotIndex);
+	
+	
 	//弹药UI更新委托
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
 	FOnAmmoUIUpdated OnAmmoUIUpdated;
