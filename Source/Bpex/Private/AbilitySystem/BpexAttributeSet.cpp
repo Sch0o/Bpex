@@ -13,11 +13,10 @@ void UBpexAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 
 	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, Health, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, ClipAmmo, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxClipAmmo, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, ReserveAmmo, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxReserveAmmo, COND_None, REPNOTIFY_Always);
-
+	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, Shield, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxShield, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, LightAmmo, COND_None, REPNOTIFY_Always);
+	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, HeavyAmmo, COND_None, REPNOTIFY_Always);
 }
 
 void UBpexAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -30,19 +29,15 @@ void UBpexAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, 
 	}
 	else if (Attribute == GetMaxHealthAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 1.0f); // 更简洁的写法，确保不小于1
+		NewValue = FMath::Max(NewValue, 1.0f);
 	}
-	else if (Attribute == GetClipAmmoAttribute())
+	else if (Attribute == GetShieldAttribute())
 	{
-		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxClipAmmo());
+		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxShield());
 	}
-	else if (Attribute == GetMaxClipAmmoAttribute() || Attribute == GetMaxReserveAmmoAttribute())
+	else if (Attribute == GetMaxShieldAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 0.0f);
-	}
-	else if (Attribute == GetReserveAmmoAttribute())
-	{
-		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxReserveAmmo());
+		NewValue = FMath::Max(NewValue, 0.0f); 
 	}
 }
 
@@ -53,19 +48,42 @@ void UBpexAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
-		
+
 		if (GetHealth() <= 0.0f)
 		{
 			AActor* Instigator = Data.EffectSpec.GetContext().GetInstigator();
 			OnOutOfHealth.Broadcast(Instigator);
 		}
-	}else if (Data.EvaluatedData.Attribute == GetClipAmmoAttribute())
-	{
-		SetClipAmmo(FMath::Clamp(GetClipAmmo(), 0.0f, GetMaxClipAmmo()));
 	}
-	else if (Data.EvaluatedData.Attribute == GetReserveAmmoAttribute())
+	else if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
-		SetReserveAmmo(FMath::Clamp(GetReserveAmmo(), 0.0f, GetMaxReserveAmmo()));
+		float Damage = GetIncomingDamage();
+		SetIncomingDamage(0.f);
+		float CurrentShield = GetShield();
+		float CurrentHealth = GetHealth();
+
+		// 先扣盾
+		float ShieldDamage = FMath::Min(Damage, CurrentShield);
+		SetShield(CurrentShield - ShieldDamage);
+		float Remaining = Damage - ShieldDamage;
+		// 再扣血
+		if (Remaining > 0.f)
+		{
+			SetHealth(FMath::Max(0.f, CurrentHealth - Remaining));
+		}
+
+		AActor* Instigator = Data.EffectSpec.GetContext().GetInstigator();
+
+		// 碎盾通知
+		if (CurrentShield > 0.f && GetShield() <= 0.f)
+		{
+			OnShieldBroken.Broadcast(Instigator);
+		}
+		// 倒地判定
+		if (GetHealth() <= 0.0f)
+		{
+			OnOutOfHealth.Broadcast(Instigator);
+		}
 	}
 }
 
@@ -89,7 +107,7 @@ void UBpexAttributeSet::SetEffectProperties(const FGameplayEffectModCallbackData
 				Props.SourceController = Pawn->GetController();
 			}
 		}
-		
+
 		if (Props.SourceController)
 		{
 			Props.SourceCharacter = Cast<ACharacter>(Props.SourceController->GetPawn());
@@ -115,22 +133,22 @@ void UBpexAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& oldMaxHeal
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, oldMaxHealth);
 }
 
-void UBpexAttributeSet::OnRep_MaxReserveAmmo(const FGameplayAttributeData& OldMaxReserveAmmo)
+void UBpexAttributeSet::OnRep_LightAmmo(const FGameplayAttributeData& OldLightAmmo)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxReserveAmmo, OldMaxReserveAmmo);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldLightAmmo);
 }
 
-void UBpexAttributeSet::OnRep_ReserveAmmo(const FGameplayAttributeData& OldReserveAmmo)
+void UBpexAttributeSet::OnRep_HeavyAmmo(const FGameplayAttributeData& OldHeavyAmmo)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, ReserveAmmo, OldReserveAmmo);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldHeavyAmmo);
 }
 
-void UBpexAttributeSet::OnRep_MaxClipAmmo(const FGameplayAttributeData& OldMaxClipAmmo)
+void UBpexAttributeSet::OnRep_Shield(const FGameplayAttributeData& OldShield)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet,MaxClipAmmo, OldMaxClipAmmo);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldShield);
 }
 
-void UBpexAttributeSet::OnRep_ClipAmmo(const FGameplayAttributeData& OldClipAmmo)
+void UBpexAttributeSet::OnRep_MaxShield(const FGameplayAttributeData& OldMaxShield)
 {
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet,ClipAmmo, OldClipAmmo);
+	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldMaxShield);
 }

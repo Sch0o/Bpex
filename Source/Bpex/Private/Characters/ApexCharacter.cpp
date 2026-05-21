@@ -377,7 +377,6 @@ void AApexCharacter::SwitchWeapon(const FInputActionValue& Value)
 	FGameplayEventData EventData;
 	if (Selection == 3)
 	{
-		// 空手：传-1
 		EventData.EventMagnitude = static_cast<float>(UGA_WeaponSwap::HOLSTER_SLOT);
 	}
 	else

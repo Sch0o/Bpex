@@ -14,6 +14,7 @@ GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOutOfHealthDelegate, AActor*, InstigatorActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShieldBrokenDelegate,AActor*, InstigatorActor);
 
 USTRUCT()
 struct FEffectProperties
@@ -59,6 +60,11 @@ class BPEX_API UBpexAttributeSet : public UAttributeSet
 public:
 	UPROPERTY(BlueprintAssignable, Category = "GAS|Attributes")
 	FOnOutOfHealthDelegate OnOutOfHealth;
+	
+	UPROPERTY(BlueprintAssignable, Category = "GAS|Attributes")
+	FOnShieldBrokenDelegate OnShieldBroken;
+	
+	
 
 public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_Health, Category="Vital Attributes")
@@ -68,22 +74,29 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MaxHealth, Category="Vital Attributes")
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, MaxHealth)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ClipAmmo, Category="Weapon Attributes")
-	FGameplayAttributeData ClipAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, ClipAmmo)
-
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MaxClipAmmo, Category="Weapons Attributes")
-	FGameplayAttributeData MaxClipAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, MaxClipAmmo)
 	
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ReserveAmmo, Category="Weapons Attributes")
-	FGameplayAttributeData ReserveAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, ReserveAmmo)
 	
-	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_MaxReserveAmmo, Category="Weapons Attributes")
-	FGameplayAttributeData MaxReserveAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, MaxReserveAmmo)
+	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_LightAmmo, Category="Ammo Attributes")
+	FGameplayAttributeData LightAmmo;
+	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, LightAmmo)
+	
+	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_HeavyAmmo, Category="Ammo Attributes")
+	FGameplayAttributeData HeavyAmmo;
+	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, HeavyAmmo)
+	
+	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_Shield, Category="Ammo Attributes")
+	FGameplayAttributeData Shield;
+	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, Shield)
+	
+	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_MaxShield, Category="Ammo Attributes")
+	FGameplayAttributeData MaxShield;
+	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, MaxShield)
+	
+	UPROPERTY(BlueprintReadOnly)
+	FGameplayAttributeData IncomingDamage; 
+	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, IncomingDamage)
+	
+	
 
 	UFUNCTION()
 	void OnRep_Health(const FGameplayAttributeData& OldHealth);
@@ -92,16 +105,18 @@ public:
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
 	
 	UFUNCTION()
-	void OnRep_MaxReserveAmmo(const FGameplayAttributeData& OldMaxReserveAmmo);
+	void OnRep_LightAmmo(const FGameplayAttributeData& OldLightAmmo);
 	
 	UFUNCTION()
-	void OnRep_ReserveAmmo(const FGameplayAttributeData& OldReserveAmmo);
+	void OnRep_HeavyAmmo(const FGameplayAttributeData& OldHeavyAmmo);
 	
 	UFUNCTION()
-	void OnRep_MaxClipAmmo(const FGameplayAttributeData& OldMaxClipAmmo);
+	void OnRep_Shield(const FGameplayAttributeData& OldShield);
 	
 	UFUNCTION()
-	void OnRep_ClipAmmo(const FGameplayAttributeData& OldClipAmmo);
+	void OnRep_MaxShield(const FGameplayAttributeData& OldMaxShield);
+	
+	
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
