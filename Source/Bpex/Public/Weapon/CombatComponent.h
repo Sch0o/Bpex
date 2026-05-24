@@ -8,6 +8,7 @@
 #include "CombatComponent.generated.h"
 
 
+struct FGameplayAbilitySpecHandle;
 enum class EAmmoType : uint8;
 class UAbilitySystemComponent;
 class AShooterWeapon;
@@ -135,6 +136,10 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UInventoryComponent> InventoryComp = nullptr;
 	
+	// 保存当前武器授予的技能句柄
+	UPROPERTY()
+	TArray<FGameplayAbilitySpecHandle> CurrentWeaponAbilityHandles;
+	
 	UFUNCTION()
 	void OnRep_ActiveSlotIndex();
 	
@@ -150,7 +155,10 @@ protected:
 	UAbilitySystemComponent* GetASC() const;
 	
 	void SetArmedState(bool bArmed);
+
+	void ClearCurrentWeaponAbilities();
 	
+	void GrantWeaponAbilities(int32 TargetSlot);
 private:
 	void BindWeaponAmmoDelegate(AShooterWeapon* Weapon);
 	void UnbindWeaponAmmoDelegate(AShooterWeapon* Weapon);

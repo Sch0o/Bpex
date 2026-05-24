@@ -9,6 +9,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "BpexGameplayTags.h"
+#include "AbilitySystem/Ability/BpexGameplayAbility.h"
 #include "InventorySystem/InventoryComponent.h"
 
 
@@ -126,10 +127,12 @@ void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 	{
 		UnbindWeaponAmmoDelegate(CurrentWeapon);
 		AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
+		ClearCurrentWeaponAbilities();
 	}
 	// 装备新武器
 	BindWeaponAmmoDelegate(NewWeapon);
 	AttachWeaponToSocket(NewWeapon, EquippedSocketName);
+	GrantWeaponAbilities(SlotIndex);
 	CurrentWeapon = NewWeapon;
 	ActiveSlotIndex = SlotIndex;
 	
@@ -228,6 +231,56 @@ void UCombatComponent::SetArmedState(bool bArmed)
 		// 添加 Unarmed, 移除 Armed
 		ASC->RemoveLooseGameplayTag(Tags.State_Armed);
 		ASC->AddLooseGameplayTag(Tags.State_UnArmed);
+	}
+}
+
+void UCombatComponent::ClearCurrentWeaponAbilities()
+{
+	UAbilitySystemComponent* ASC = GetASC();
+	
+	if (!ASC || !GetOwner()->HasAuthority()) 
+	{
+		return; 
+	}
+	
+	for (const FGameplayAbilitySpecHandle& Handle : CurrentWeaponAbilityHandles)
+	{
+		if (Handle.IsValid())
+		{
+			ASC->CancelAbilityHandle(Handle);
+			ASC->ClearAbility(Handle);
+		}
+	}
+	CurrentWeaponAbilityHandles.Empty();
+}
+
+void UCombatComponent::GrantWeaponAbilities(int32 TargetSlot)
+{
+	UAbilitySystemComponent* ASC = GetASC();
+	AShooterWeapon* NewWeapon = WeaponSlots[TargetSlot];
+    
+	if (!ASC || !NewWeapon) return;
+	
+	if (GetOwner()->HasAuthority())
+	{
+		for (TSubclassOf<UGameplayAbility> AbilityClass : NewWeapon->WeaponAbilities)
+		{
+			if (AbilityClass)
+			{
+				FGameplayAbilitySpec Spec(AbilityClass, 1, INDEX_NONE, NewWeapon);
+				
+				if (const UBpexGameplayAbility* AbilityCDO = Cast<UBpexGameplayAbility>(AbilityClass.GetDefaultObject()))
+				{
+					if (AbilityCDO->StartupInputTag.IsValid())
+					{
+						Spec.GetDynamicSpecSourceTags().AddTag(AbilityCDO->StartupInputTag);
+					}
+				}
+				
+				FGameplayAbilitySpecHandle GrantedHandle = ASC->GiveAbility(Spec);
+				CurrentWeaponAbilityHandles.Add(GrantedHandle);
+			}
+		}
 	}
 }
 

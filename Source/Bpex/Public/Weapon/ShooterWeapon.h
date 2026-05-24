@@ -9,6 +9,7 @@
 #include "AmmoTypes.h"
 #include "ShooterWeapon.generated.h"
 
+class UGameplayAbility;
 class UCombatComponent;
 class IShooterWeaponHolder;
 class AShooterProjectile;
@@ -44,6 +45,9 @@ protected:
 	void OnRep_CurrentClipAmmo();
 
 public:
+	
+	UPROPERTY(EditDefaultsOnly,Category ="Weapon|Ability") 
+	TArray<TSubclassOf<UGameplayAbility>> WeaponAbilities;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Socket")
 	FName UnEquippedSocketName;
