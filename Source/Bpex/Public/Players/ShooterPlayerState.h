@@ -7,6 +7,7 @@
 #include "AbilitySystemInterface.h"
 #include "ShooterPlayerState.generated.h"
 
+class UBpexAbilitySystemComponent;
 class UAbilitySystemComponent;
 class UAttributeSet;
 
@@ -21,6 +22,8 @@ public:
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
 	UAttributeSet* GetAttributeSet() const;
+	
+	UBpexAbilitySystemComponent* GetBpexAbilitySystemComponent() const;
 
 	
 protected:

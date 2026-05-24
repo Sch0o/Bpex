@@ -8,8 +8,15 @@ void UBpexGameplayAbility::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInf
 {
 	Super::OnAvatarSet(ActorInfo, Spec);
 	
-	if (ActivateAbilityOnGranted)
+	if (ActivationPolicy == EBpexAbilityActivationPolicy::OnSpawn)
 	{
-		ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle,false);
+		if (ActorInfo && ActorInfo->AbilitySystemComponent.Get())
+		{
+			// 如果是单机游戏，HasAuthority() 也是 true
+			if (ActorInfo->IsNetAuthority())
+			{
+				ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+			}
+		}
 	}
 }

@@ -18,6 +18,11 @@ class BPEX_API UGA_FireBase : public UBpexGameplayAbility
 public:
 	UGA_FireBase();
 
+	virtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	                                const FGameplayTagContainer* SourceTags = nullptr,
+	                                const FGameplayTagContainer* TargetTags = nullptr,
+	                                FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
+
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	                             const FGameplayAbilityActivationInfo ActivationInfo,
 	                             const FGameplayEventData* TriggerEventData) override;
@@ -33,7 +38,7 @@ public:
 protected:
 	//子弹配置
 	int32 LocalAmmoCount = 0;
-	
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
 	UBulletDataAsset* BulletConfig = nullptr;
 
@@ -53,20 +58,22 @@ protected:
 	//Cue
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS|Cues")
 	FGameplayTag FireCueTag;
-
-	FTimerHandle AutoFireTimerHandle;
-	UFUNCTION(BlueprintCallable, Category="Weapon")
-	void AutoFireTick();
+	
+	UFUNCTION(BlueprintCallable,Category="Weapon")
+	bool PerformFire();
+	
+	
 	UFUNCTION(BlueprintImplementableEvent, Category="Ability", meta=(DisplayName="On Auto Fire Tick"))
 	void K2_OnAutoFireTick();
 	void FireSingleBullet();
-	
+
 	void InitLocalAmmoCount();
-	
+
 	bool TryConsumeLocalAmmo();
 
 	FVector ApplySpread(const FVector& BaseDirection) const;
 
 	virtual void InputReleased(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
 	                           const FGameplayAbilityActivationInfo ActivationInfo) override;
+
 };

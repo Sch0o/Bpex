@@ -7,11 +7,13 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
+#include "AbilitySystem/BpexAbilitySystemComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/PlayerState.h"
 #include "InventorySystem/InvItemComponent.h"
 #include "InventorySystem/Interact/InteractableInterface.h"
+#include "Players/ShooterPlayerState.h"
 #include "UI/BpexHUD.h"
 
 void AShooterPlayerController::ServerRequestServerTime_Implementation(float TimeOfClientRequest)
@@ -151,6 +153,17 @@ float AShooterPlayerController::GetServerTime() const
 	return GetWorld()->GetTimeSeconds() + ClientServerDelta;
 }
 
+UBpexAbilitySystemComponent* AShooterPlayerController::GetBpexAbilitySystemComponent() const
+{
+	const AShooterPlayerState* PS = GetShooterPlayerState();
+	return (PS ? PS->GetBpexAbilitySystemComponent() : nullptr);
+}
+
+AShooterPlayerState* AShooterPlayerController::GetShooterPlayerState() const
+{
+	return CastChecked<AShooterPlayerState>(PlayerState, ECastCheckedType::NullAllowed);
+}
+
 void AShooterPlayerController::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
@@ -161,6 +174,15 @@ void AShooterPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	TryInitMVVM();
+}
+
+void AShooterPlayerController::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+{
+	if (UBpexAbilitySystemComponent* ASC = GetBpexAbilitySystemComponent())
+	{
+		ASC->ProcessAbilityInput(DeltaTime, bGamePaused);
+	}
+	Super::PostProcessInput(DeltaTime, bGamePaused);
 }
 
 void AShooterPlayerController::Interact() const

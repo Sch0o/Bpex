@@ -22,14 +22,34 @@ UGA_FireBase::UGA_FireBase()
 	
 	ActivationOwnedTags.AddTag(FBpexGameplayTags::Get().State_Action_Firing);
 	
-	ActivationBlockedTags.AddTag(FBpexGameplayTags::Get().State_Action_Firing);
+	SourceBlockedTags.AddTag(FBpexGameplayTags::Get().Ability_Weapon_NoFiring);
+}
+
+bool UGA_FireBase::CanActivateAbility(const FGameplayAbilitySpecHandle Handle,
+	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags,
+	const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags))
+	{
+		return false;
+	}
+	const AActor* AvatarActor = ActorInfo ? ActorInfo->AvatarActor.Get() : nullptr;
+	if (!AvatarActor)
+	{
+		return false;
+	}
+	const UCombatComponent* CombatComp = AvatarActor->FindComponentByClass<UCombatComponent>();
+	if (!CombatComp || !CombatComp->HasWeaponEquipped())
+	{
+		return false;
+	}
+	return true;
 }
 
 void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
                                    const FGameplayAbilityActivationInfo ActivationInfo,
                                    const FGameplayEventData* TriggerEventData)
 {
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
@@ -46,33 +66,32 @@ void UGA_FireBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, cons
 	if (IsLocallyControlled())
 	{
 		InitLocalAmmoCount();
-		AutoFireTick();
-		GetWorld()->GetTimerManager().SetTimer(
-			AutoFireTimerHandle, this,
-			&UGA_FireBase::AutoFireTick, TimeBetweenShots, true);
 	}
+	
+	//调Super让蓝图接管
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
 void UGA_FireBase::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
                               const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility,
                               bool bWasCancelled)
 {
-	GetWorld()->GetTimerManager().ClearTimer(AutoFireTimerHandle);
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
-void UGA_FireBase::AutoFireTick()
+bool UGA_FireBase::PerformFire()
 {
+	
+	if (!IsLocallyControlled()) return false;
+	
 	if (!TryConsumeLocalAmmo())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("UGA_FireBase::AutoFireTick:: out of ammo"));
-		K2_OnInputReleased();
-		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		return;
+		UE_LOG(LogTemp, Warning, TEXT("NO Ammo"));
+		return false;
 	}
-
+	
 	FireSingleBullet();
-
+	
 	if (FireCueTag.IsValid())
 	{
 		FGameplayCueParameters Params;
@@ -83,10 +102,10 @@ void UGA_FireBase::AutoFireTick()
 			EGameplayCueEvent::Executed,
 			Params);
 	}
-
-	//累计散布
 	CurrentSpreadAngle = FMath::Min(
 		CurrentSpreadAngle + SpreadIncreasePerShot, MaxSpreadAngle);
+	
+	return true;
 }
 
 void UGA_FireBase::FireSingleBullet()
@@ -115,8 +134,8 @@ void UGA_FireBase::FireSingleBullet()
 		DamageSpec = ASC->MakeOutgoingSpec(
 			BulletConfig->DamageEffectClass, GetAbilityLevel(), Context);
 	}
-	UBulletManagerComponent* BulletMgr = AvatarActor->FindComponentByClass<UBulletManagerComponent>();
-	if (BulletMgr)
+	
+	if (UBulletManagerComponent* BulletMgr = AvatarActor->FindComponentByClass<UBulletManagerComponent>())
 	{
 		BulletMgr->FireBullet(BulletConfig, Origin, FinalDirection, DamageSpec);
 	}
@@ -197,3 +216,4 @@ void UGA_FireBase::InputReleased(const FGameplayAbilitySpecHandle Handle, const 
 		K2_OnInputReleased();
 	}
 }
+

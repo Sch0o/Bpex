@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "InventorySystem/UI/VM_InventorySlot.h"
+#include "UI/VM_InventorySlot.h"
 #include "InventorySystem/Types/InventoryTypes.h"
 
 void UVM_InventorySlot::SetItemIcon(UTexture2D* NewItemIcon)

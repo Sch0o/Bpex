@@ -4,6 +4,8 @@
 #include "AbilitySystem/BpexAbilitySystemComponent.h"
 
 #include "BpexGameplayTags.h"
+#include "NativeGameplayTags.h"
+#include "AbilitySystem/BpexAbilityTypes.h"
 #include "AbilitySystem/Ability/BpexGameplayAbility.h"
 
 void UBpexAbilitySystemComponent::EffectApplied(UAbilitySystemComponent* ASC, const FGameplayEffectSpec& EffectSpec,
@@ -15,39 +17,43 @@ void UBpexAbilitySystemComponent::EffectApplied(UAbilitySystemComponent* ASC, co
 	OnEffectAssetTagsApplied.Broadcast(TagContainer);
 }
 
+UBpexAbilitySystemComponent::UBpexAbilitySystemComponent()
+{
+	InputPressedSpecHandles.Reset();
+	InputHeldSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+}
+
 void UBpexAbilitySystemComponent::AbilityActorInfoSet()
 {
 	OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &UBpexAbilitySystemComponent::EffectApplied);;
 }
 
-void UBpexAbilitySystemComponent::AbilityInputHeld(const FGameplayTag& InputTag)
-{
-}
-
 void UBpexAbilitySystemComponent::AbilityInputPressed(const FGameplayTag& InputTag)
 {
 	if (!InputTag.IsValid())return;
-	for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	
+	for (const FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
 	{
-		if (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		if (AbilitySpec.Ability&&AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
 		{
-			AbilitySpecInputPressed(AbilitySpec);
-			if (!AbilitySpec.IsActive())
-			{
-				TryActivateAbility(AbilitySpec.Handle);
-			}
+			InputPressedSpecHandles.AddUnique(AbilitySpec.Handle);
+			InputHeldSpecHandles.AddUnique(AbilitySpec.Handle);
 		}
 	}
 }
 
 void UBpexAbilitySystemComponent::AbilityInputReleased(const FGameplayTag& InputTag)
 {
-	if (!InputTag.IsValid())return;
-	for (FGameplayAbilitySpec& AbilitySpec : GetActivatableAbilities())
+	if (InputTag.IsValid())
 	{
-		if (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
-			AbilitySpecInputReleased(AbilitySpec);
+			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
+			{
+				InputReleasedSpecHandles.AddUnique(AbilitySpec.Handle);
+				InputHeldSpecHandles.Remove(AbilitySpec.Handle);
+			}
 		}
 	}
 }
@@ -138,5 +144,103 @@ bool UBpexAbilitySystemComponent::GetCooldownRemainingForTag(FGameplayTagContain
 		}
 	}
 	return false; // 当前没有该 Tag 的冷却
+}
+
+void UBpexAbilitySystemComponent::ProcessAbilityInput(float DeltaTime,const bool bGamePaused)
+{
+	if (HasMatchingGameplayTag(FBpexGameplayTags::Get().Gameplay_AbilityInputBlocked))
+	{
+		ClearAbilityInput();
+		return;
+	}
+	
+	//static 保证可以不用重复开辟内存，优化性能
+	static TArray<FGameplayAbilitySpecHandle> AbilitiesToActivate;
+	AbilitiesToActivate.Reset();
+	
+	// Process all abilities that activate when the input is held.
+	// 某些技能例如开火可能在held期间End，这时就需要继续激活
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputHeldSpecHandles)
+	{
+		if (const FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability && !AbilitySpec->IsActive())
+			{
+				const UBpexGameplayAbility* AbilityCDO = Cast<UBpexGameplayAbility>(AbilitySpec->Ability);
+				if (AbilityCDO && AbilityCDO->GetActivationPolicy() == EBpexAbilityActivationPolicy::WhileInputActive)
+				{
+					AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
+				}
+			}
+		}
+	}
+	
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputPressedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
+			{
+				AbilitySpec->InputPressed = true;
+
+				if (AbilitySpec->IsActive())
+				{
+					// Ability is active so pass along the input event.
+					AbilitySpecInputPressed(*AbilitySpec);
+				}
+				else
+				{
+					const UBpexGameplayAbility* LyraAbilityCDO = Cast<UBpexGameplayAbility>(AbilitySpec->Ability);
+
+					if (LyraAbilityCDO && LyraAbilityCDO->GetActivationPolicy() == EBpexAbilityActivationPolicy::OnInputTriggered)
+					{
+						AbilitiesToActivate.AddUnique(AbilitySpec->Handle);
+					}
+				}
+			}
+		}
+	}
+	
+	//
+	// Try to activate all the abilities that are from presses and holds.
+	// We do it all at once so that held inputs don't activate the ability
+	// and then also send a input event to the ability because of the press.
+	//
+	for (const FGameplayAbilitySpecHandle& AbilitySpecHandle : AbilitiesToActivate)
+	{
+		TryActivateAbility(AbilitySpecHandle);
+	}
+	
+	
+	// Process all abilities that had their input released this frame.
+	for (const FGameplayAbilitySpecHandle& SpecHandle : InputReleasedSpecHandles)
+	{
+		if (FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(SpecHandle))
+		{
+			if (AbilitySpec->Ability)
+			{
+				AbilitySpec->InputPressed = false;
+
+				if (AbilitySpec->IsActive())
+				{
+					// Ability is active so pass along the input event.
+					AbilitySpecInputReleased(*AbilitySpec);
+				}
+			}
+		}
+	}
+	
+	
+	// Clear the cached ability handles.
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+	
+}
+
+void UBpexAbilitySystemComponent::ClearAbilityInput()
+{
+	InputPressedSpecHandles.Reset();
+	InputReleasedSpecHandles.Reset();
+	InputHeldSpecHandles.Reset();
 }
 

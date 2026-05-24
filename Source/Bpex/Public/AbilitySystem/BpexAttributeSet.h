@@ -76,14 +76,6 @@ public:
 	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, MaxHealth)
 	
 	
-	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_LightAmmo, Category="Ammo Attributes")
-	FGameplayAttributeData LightAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, LightAmmo)
-	
-	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_HeavyAmmo, Category="Ammo Attributes")
-	FGameplayAttributeData HeavyAmmo;
-	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, HeavyAmmo)
-	
 	UPROPERTY(BlueprintReadOnly,ReplicatedUsing=OnRep_Shield, Category="Ammo Attributes")
 	FGameplayAttributeData Shield;
 	ATTRIBUTE_ACCESSORS(UBpexAttributeSet, Shield)
@@ -103,12 +95,6 @@ public:
 	
 	UFUNCTION()
 	void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
-	
-	UFUNCTION()
-	void OnRep_LightAmmo(const FGameplayAttributeData& OldLightAmmo);
-	
-	UFUNCTION()
-	void OnRep_HeavyAmmo(const FGameplayAttributeData& OldHeavyAmmo);
 	
 	UFUNCTION()
 	void OnRep_Shield(const FGameplayAttributeData& OldShield);

@@ -1,10 +1,10 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "InventorySystem/UI/VM_InventoryMain.h"
+#include "UI/VM_InventoryMain.h"
 #include "InventorySystem/InventoryComponent.h"
 #include "InventorySystem/Types/InventoryTypes.h"
-#include "InventorySystem/UI/VM_InventorySlot.h"
+#include "UI/VM_InventorySlot.h"
 
 UVM_InventoryMain::UVM_InventoryMain()
 {

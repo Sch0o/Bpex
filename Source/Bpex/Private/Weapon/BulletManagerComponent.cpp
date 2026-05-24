@@ -370,7 +370,7 @@ bool UBulletManagerComponent::UpdateBulletParams(FActiveBullet& Bullet, float De
 
 void UBulletManagerComponent::SimulateBullet(FActiveBullet& Bullet, float DeltaTime)
 {
-	UE_LOG(LogTemp, Warning, TEXT("SimulateBullet"));
+	//UE_LOG(LogTemp, Warning, TEXT("SimulateBullet"));
 
 	FVector OldPosition = Bullet.Position;
 
@@ -381,7 +381,7 @@ void UBulletManagerComponent::SimulateBullet(FActiveBullet& Bullet, float DeltaT
 
 	if (bHit)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SimulateBullet: bHit = true"));
+		
 		ProcessLocalHit(Bullet, HitResult);
 		Bullet.bPendingKill = true;
 		return;
@@ -391,7 +391,6 @@ void UBulletManagerComponent::SimulateBullet(FActiveBullet& Bullet, float DeltaT
 
 void UBulletManagerComponent::ProcessLocalHit(FActiveBullet& Bullet, const FHitResult& HitResult)
 {
-	UE_LOG(LogTemp, Warning, TEXT("ProcessLocalHit"));
 	//施加命中特效
 	if (Bullet.Config && Bullet.Config->ImpactEffect)
 	{

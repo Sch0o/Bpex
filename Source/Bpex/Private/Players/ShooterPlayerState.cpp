@@ -25,3 +25,8 @@ UAttributeSet* AShooterPlayerState::GetAttributeSet() const
 {
 	return AttributeSet;
 }
+
+UBpexAbilitySystemComponent* AShooterPlayerState::GetBpexAbilitySystemComponent() const
+{
+	return CastChecked<UBpexAbilitySystemComponent>(AbilitySystemComponent, ECastCheckedType::NullAllowed);
+}

@@ -245,7 +245,6 @@ void UCombatComponent::UnbindWeaponAmmoDelegate(AShooterWeapon* Weapon)
 
 void UCombatComponent::OnWeaponClipAmmoChanged(int32 NewClip, int32 MaxClip)
 {
-	UE_LOG(LogTemp, Warning, TEXT("UCombatComponent::OnWeaponClipAmmoChanged::NewClipAmmo: %d"), NewClip);
 	BroadcastAmmoUI();
 }
 

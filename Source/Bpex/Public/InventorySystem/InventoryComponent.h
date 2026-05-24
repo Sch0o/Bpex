@@ -109,10 +109,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	
-	UPROPERTY(Replicated = OnRep_LightAmmo)
+	UPROPERTY(ReplicatedUsing = OnRep_LightAmmo)
 	int32 LightAmmoCount = 0;
 	
-	UPROPERTY(Replicated = OnRep_HeavyAmmo)
+	UPROPERTY(ReplicatedUsing = OnRep_HeavyAmmo)
 	int32 HeavyAmmoCount = 0;
 
 	UPROPERTY(EditDefaultsOnly, Category="Inventory")

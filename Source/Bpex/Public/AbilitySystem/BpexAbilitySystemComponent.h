@@ -18,9 +18,9 @@ protected :
 	                   FActiveGameplayEffectHandle ActiveEffectHandle);
 
 public:
-	void AbilityActorInfoSet();
+	UBpexAbilitySystemComponent();
 	
-	void AbilityInputHeld(const FGameplayTag&InputTag);
+	void AbilityActorInfoSet();
 	
 	void AbilityInputPressed(const FGameplayTag&InputTag);
 	
@@ -33,4 +33,19 @@ public:
 	void DebugPrintTriggerMapping();
 	
 	bool GetCooldownRemainingForTag(FGameplayTagContainer CooldownTags, float& TimeRemaining, float& CooldownDuration);
+	
+	void ProcessAbilityInput(float DeltaTime,const bool bGamePaused);
+	
+	
+protected:
+	// Handles to abilities that had their input pressed this frame.
+	TArray<FGameplayAbilitySpecHandle> InputPressedSpecHandles;
+
+	// Handles to abilities that had their input released this frame.
+	TArray<FGameplayAbilitySpecHandle> InputReleasedSpecHandles;
+
+	// Handles to abilities that have their input held.
+	TArray<FGameplayAbilitySpecHandle> InputHeldSpecHandles;
+	
+	void ClearAbilityInput();
 };

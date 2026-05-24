@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "ShooterPlayerController.generated.h"
 
+class AShooterPlayerState;
+class UBpexAbilitySystemComponent;
 class AApexCharacter;
 class UInvHUDWidget;
 class UShooterUI;
@@ -53,6 +55,8 @@ protected:
 	
 	virtual void OnPossess(APawn* InPawn) override;
 	
+	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
+	
 	UFUNCTION()
 	void OnPawnDestroyed(AActor* DestroyedActor);
 	
@@ -78,4 +82,8 @@ public:
 	float GetServerTime()const;
 	
 	float GetClientServerDeltaTime()const{return ClientServerDelta;}
+	
+	UBpexAbilitySystemComponent* GetBpexAbilitySystemComponent() const;
+	
+	AShooterPlayerState* GetShooterPlayerState() const;
 };

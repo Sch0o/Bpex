@@ -3,6 +3,7 @@
 
 #include "BpexGameplayTags.h"
 #include "GameplayTagsManager.h"
+#include "GameplayTagsSettings.h"
 
 void FBpexGameplayTags::InitializeNativeGameplayTags()
 {
@@ -45,6 +46,8 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("State.Action.Firing"), FString("State for Action Firing"));
 	Get().State_Action_Swapping = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("State.Action.Swapping"),FString("State for Action Swapping"));
+	Get().State_Dead = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("State.Dead"),FString("State for Action Swapping"));
 
 	/*
 	* Event Tags
@@ -65,6 +68,8 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("Ability.Item.Medkit"),FString("Ability for Using Medkit"));
 	Get().Ability_Item_Syringe = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Ability.Item.Syringe"),FString("Ability for Using Syringe"));
+	Get().Ability_Weapon_NoFiring = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Ability.Weapon.NoFiring"),FString("NO Firing"));
 	
 	Get().Data_Ammo_DropAmount = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Data.Ammo_DropAmount"),FString("Data Ammo DropAmount"));
@@ -102,6 +107,10 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("InputTag.Weapon.Slot2"),FString("Input Tag for Weapon Slot2"));
 	Get().InputTag_Weapon_Holster = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("InputTag.Weapon.Holster"),FString("Input Tag for Holster"));
+	Get().InputTag_Weapon_Reload = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Weapon.Reload"),FString("Input Tag for Reload"));
+	Get().InputTag_Weapon_Reload = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("InputTag.Weapon.Fire"),FString("Input Tag for Weapon Fire"));
 	
 	
 	Get().Item_UseDuration = UGameplayTagsManager::Get().AddNativeGameplayTag(
@@ -109,6 +118,11 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 	
 	Get().Item_UseDuration = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Item.SlotIndex"),FString("Item SlotIndex"));
+	
+	
+	Get().Gameplay_AbilityInputBlocked = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Gameplay.AbilityInputBlocked"),FString("AbilityInputBlocked"));
+	
 	
 }
 

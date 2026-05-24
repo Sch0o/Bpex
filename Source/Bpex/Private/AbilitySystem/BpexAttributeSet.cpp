@@ -15,8 +15,6 @@ void UBpexAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, Shield, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, MaxShield, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, LightAmmo, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UBpexAttributeSet, HeavyAmmo, COND_None, REPNOTIFY_Always);
 }
 
 void UBpexAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -133,15 +131,6 @@ void UBpexAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& oldMaxHeal
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, oldMaxHealth);
 }
 
-void UBpexAttributeSet::OnRep_LightAmmo(const FGameplayAttributeData& OldLightAmmo)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldLightAmmo);
-}
-
-void UBpexAttributeSet::OnRep_HeavyAmmo(const FGameplayAttributeData& OldHeavyAmmo)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UBpexAttributeSet, MaxHealth, OldHeavyAmmo);
-}
 
 void UBpexAttributeSet::OnRep_Shield(const FGameplayAttributeData& OldShield)
 {

@@ -29,9 +29,9 @@ public:
 	FGameplayTag State_Debuff_Revealed;
 	FGameplayTag State_Armed;
 	FGameplayTag State_UnArmed;
-	
 	FGameplayTag State_Action_Firing;
 	FGameplayTag State_Action_Swapping;
+	FGameplayTag State_Dead;
 	
 	FGameplayTag Event_UseItem_Medkit;
 	FGameplayTag Event_UseItem_Syringe;
@@ -39,6 +39,7 @@ public:
 	
 	FGameplayTag Ability_Item_Syringe;
 	FGameplayTag Ability_Item_Medkit;
+	FGameplayTag Ability_Weapon_NoFiring;
 	
 	FGameplayTag GameplayCue_Weapon_Rifle_Fire;
 	
@@ -57,10 +58,14 @@ public:
 	FGameplayTag InputTag_Weapon_Slot1;
 	FGameplayTag InputTag_Weapon_Slot2;
 	FGameplayTag InputTag_Weapon_Holster;
+	FGameplayTag InputTag_Weapon_Reload;
+	FGameplayTag InputTag_Weapon_Fire;
 	FGameplayTag InputTag_1;
 	FGameplayTag InputTag_2;
 	FGameplayTag InputTag_3;
 	FGameplayTag InputTag_4;
+	
+	FGameplayTag Gameplay_AbilityInputBlocked;
 
 private:
 	FBpexGameplayTags();

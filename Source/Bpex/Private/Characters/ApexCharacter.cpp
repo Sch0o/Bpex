@@ -296,10 +296,6 @@ void AApexCharacter::AbilityInputReleased(FGameplayTag InputTag)
 
 void AApexCharacter::AbilityInputHeld(FGameplayTag InputTag)
 {
-	if (UBpexAbilitySystemComponent* GAS = Cast<UBpexAbilitySystemComponent>(GetAbilitySystemComponent()))
-	{
-		GAS->AbilityInputHeld(InputTag);
-	}
 }
 
 FCollisionQueryParams AApexCharacter::GetIgnoreCharacterParams() const
