@@ -228,27 +228,6 @@ void UShooterViewModel::InitializeLegendAbility(ULegendAbilityComponent* InLAC)
 	SetIsUltimateReady(false);
 }
 
-void UShooterViewModel::UpdateAbilityCooldowns()
-{
-	if (!LegendAbilityComponent) return;
-
-	// //战术技能
-	// float TacticalCDRemaining = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
-	// UE_LOG(LogTemp, Warning, TEXT("TacticalCDRemaining: %f"), TacticalCDRemaining);
-	// float TacticalCDPercent = LegendAbilityComponent->GetCooldownPercentBySlot(EAbilitySlotType::Tactical);
-	// UE_LOG(LogTemp, Warning, TEXT("TacticalCDPercent : %f"), TacticalCDPercent);
-	// bool bTacticalReady = LegendAbilityComponent->IsAbilityReady(EAbilitySlotType::Tactical);
-	// SetTacticalCooldownPercent(TacticalCDPercent);
-	// SetTacticalCooldownRemaining(TacticalCDRemaining);
-	// SetIsTacticalReady(bTacticalReady);
-	//
-	// //绝招
-	// float UltChargePercent = LegendAbilityComponent->GetUltimateChargePercent();
-	// bool bUltReady = LegendAbilityComponent->IsUltimateReady();
-	// SetUltimateChargePercent(UltChargePercent);
-	// SetIsUltimateReady(bUltReady);
-}
-
 
 void UShooterViewModel::OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
