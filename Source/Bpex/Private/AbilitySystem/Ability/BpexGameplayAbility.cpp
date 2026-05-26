@@ -12,7 +12,6 @@ void UBpexGameplayAbility::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInf
 	{
 		if (ActorInfo && ActorInfo->AbilitySystemComponent.Get())
 		{
-			// 如果是单机游戏，HasAuthority() 也是 true
 			if (ActorInfo->IsNetAuthority())
 			{
 				ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);

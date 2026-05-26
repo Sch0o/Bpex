@@ -52,6 +52,8 @@ public:
 	FGameplayTag Cooldown_Weapon_Fire;
 	FGameplayTag Cooldown_Ability_TestTactical;
 	FGameplayTag Cooldown_Ability_TestUltimate;
+	FGameplayTag Cooldown_Ability_Tactical;
+	FGameplayTag Cooldown_Ability_Ultimate;
 	
 	FGameplayTag InputTag_LMB;
 	FGameplayTag InputTag_RMB;

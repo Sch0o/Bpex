@@ -5,9 +5,11 @@
 
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "BpexGameplayTags.h"
 #include "AbilitySystem/BpexAttributeSet.h"
 #include "Weapon/CombatComponent.h"
 #include "AbilitySystem/LegendAbilityComponent.h"
+#include "AbilitySystem/Ability/CooldownListener.h"
 #include "InventorySystem/InventoryComponent.h"
 
 
@@ -95,6 +97,15 @@ void UShooterViewModel::InitializeViewModel(APlayerController* PC)
 	{
 		HandlePawnChanged(nullptr, CurrentPawn);
 	}
+	
+	
+	FGameplayTagContainer CooldownTags;
+	CooldownTags.AddTag(FBpexGameplayTags::Get().Cooldown_Ability_Tactical);
+	CooldownTags.AddTag(FBpexGameplayTags::Get().Cooldown_Ability_Ultimate);
+	
+	CooldownListener = NewObject<UCooldownListener>(this);
+	CooldownListener->StartListening(ASC,CooldownTags,true);
+	
 }
 
 void UShooterViewModel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn)
@@ -292,4 +303,15 @@ void UShooterViewModel::HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount)
 	{
 		SetReserveAmmo(NewCount);
 	}
+}
+
+
+void UShooterViewModel::HandleCoolDownEnd(FGameplayTag Tag, float TimeRemaining, float Duration)
+{
+	if (Tag.MatchesTagExact())
+}
+
+void UShooterViewModel::HandleCoolDownBegin(FGameplayTag Tag, float TimeRemaining, float Duration)
+{
+	
 }

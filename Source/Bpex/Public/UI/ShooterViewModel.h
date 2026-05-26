@@ -1,12 +1,13 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "MVVMViewModelBase.h"
 #include "Weapon/AmmoTypes.h"
+#include "GameplayTags.h"
 #include "ShooterViewModel.generated.h"
 
+
+class UCooldownListener;
 class UCombatComponent;
 class ULegendAbilityComponent;
 class UInventoryComponent;
@@ -46,16 +47,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetClipAmmo(int32 NewClipAmmo);
 
-	
+
 	UFUNCTION(BlueprintCallable)
 	void InitializeASC(UAbilitySystemComponent* InASC);
 
 	UFUNCTION(BlueprintCallable)
 	void InitializeInventory(UInventoryComponent* InIC);
-	
+
 	UFUNCTION(BlueprintCallable)
 	void InitializeCombat(UCombatComponent* InCombat);
-	
+
 	//初始化技能系统
 	UFUNCTION(BlueprintCallable, Category="Ability")
 	void InitializeLegendAbility(ULegendAbilityComponent* InLAC);
@@ -71,22 +72,25 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetCurrentUseDuration(float NewDuration);
-	
-	
-	UFUNCTION(BlueprintPure,FieldNotify)
+
+
+	UFUNCTION(BlueprintPure, FieldNotify)
 	float GetTacticalCooldownPercent() const { return TacticalCooldownPercent; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetTacticalCooldownPercent(float NewPercent);
-	
+
 	/** 冷却剩余秒数 */
 	UFUNCTION(BlueprintPure, FieldNotify)
 	float GetTacticalCooldownRemaining() const { return TacticalCooldownRemaining; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetTacticalCooldownRemaining(float NewRemaining);
-	
+
 	/** 战术技能是否就绪 */
 	UFUNCTION(BlueprintPure, FieldNotify)
 	bool GetIsTacticalReady() const { return bIsTacticalReady; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetIsTacticalReady(bool bNewReady);
 	/**冷却剩余文本显示（如"12s"） */
@@ -96,11 +100,13 @@ public:
 	/** 充能百分比 0~1 */
 	UFUNCTION(BlueprintPure, FieldNotify)
 	float GetUltimateChargePercent() const { return UltimateChargePercent; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetUltimateChargePercent(float NewPercent);
 	/** 大招是否就绪 */
 	UFUNCTION(BlueprintPure, FieldNotify)
 	bool GetIsUltimateReady() const { return bIsUltimateReady; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetIsUltimateReady(bool bNewReady);
 
@@ -109,13 +115,16 @@ public:
 	// ----- 技能图标（UI绑定用） -----
 	UFUNCTION(BlueprintPure, FieldNotify)
 	UTexture2D* GetTacticalIcon() const { return TacticalIcon; }
+
 	UFUNCTION(BlueprintCallable)
-	void SetTacticalIcon(UTexture2D* NewIcon);UFUNCTION(BlueprintPure, FieldNotify)
+	void SetTacticalIcon(UTexture2D* NewIcon);
+	UFUNCTION(BlueprintPure, FieldNotify)
 	UTexture2D* GetUltimateIcon() const { return UltimateIcon; }
+
 	UFUNCTION(BlueprintCallable)
 	void SetUltimateIcon(UTexture2D* NewIcon);
-	
-	
+
+
 	UFUNCTION(BlueprintCallable)
 	void InitializeViewModel(APlayerController* PC);
 
@@ -125,40 +134,56 @@ protected:
 
 	UPROPERTY()
 	UInventoryComponent* InventoryComponent;
-	
+
 	UPROPERTY()
 	ULegendAbilityComponent* LegendAbilityComponent = nullptr;
-	
+
 	UPROPERTY()
 	TObjectPtr<UCombatComponent> CombatComponent = nullptr;
-	
+
+	UPROPERTY()
+	TObjectPtr<UCooldownListener> CooldownListener = nullptr;
+
+
 	void OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount);
 
 	void HealthChanged(const FOnAttributeChangeData& Data);
+
 	void MaxHealthChanged(const FOnAttributeChangeData& Data);
 
 	void UpdateHealthPercent();
 
 	UFUNCTION()
 	void HandleItemUseStarted(float Duration);
-	
+
 	UFUNCTION()
 	void HandleAmmoUIUpdated(int32 NewClipAmmo, int32 NewReserveAmmo);
-	
+
 	UFUNCTION()
 	void HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount);
-	
+
+	UFUNCTION()
+	void HandleCoolDownBegin(FGameplayTag Tag, float TimeRemaining, float Duration);
+
+	UFUNCTION()
+	void HandleCoolDownEnd(FGameplayTag Tag, float TimeRemaining, float Duration);
+
 	UFUNCTION()
 	void UpdateAbilityCooldowns();
-	
+
+
 	FTimerHandle CooldownTimerHandle;
-	
+
 	//MVVM init
 	UFUNCTION(Category="Init")
 	void HandlePawnChanged(APawn* OldPawn, APawn* NewPawn);
 
-
 private:
+	
+	FGameplayTag TacticalCooldownTag;
+	
+	FGameplayTag UltimateCooldownTag;
+	
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetHealthPercent, Getter=GetHealthPercent,
 		meta=(AllowPrivateAccess=true))
 	float HealthPercent = 1.0f;
@@ -187,35 +212,36 @@ private:
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetTacticalCooldownRemaining,
 		Getter = GetTacticalCooldownRemaining, meta = (AllowPrivateAccess = true))
 	float TacticalCooldownRemaining = 0.f;
-	
+
 	//战术技能是否就绪
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetIsTacticalReady,
 		Getter = GetIsTacticalReady, meta = (AllowPrivateAccess = true))
 	bool bIsTacticalReady = true;
-	
+
 	//绝招充能百分比
-	UPROPERTY(BlueprintReadWrite, FieldNotify,Setter = SetUltimateChargePercent,
-	   Getter = GetUltimateChargePercent, meta = (AllowPrivateAccess = true))
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetUltimateChargePercent,
+		Getter = GetUltimateChargePercent, meta = (AllowPrivateAccess = true))
 	float UltimateChargePercent = 0.f;
-	
+
 	//绝招是否就绪
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetIsUltimateReady,
 		Getter = GetIsUltimateReady, meta = (AllowPrivateAccess = true))
 	bool bIsUltimateReady = false;
-	
+
 	//战术技能图标
-	UPROPERTY(BlueprintReadWrite, FieldNotify,Setter = SetTacticalIcon,
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter = SetTacticalIcon,
 		Getter = GetTacticalIcon, meta = (AllowPrivateAccess = true))
 	TObjectPtr<UTexture2D> TacticalIcon = nullptr;
-	
+
 	//绝招技能图标
 	UPROPERTY(BlueprintReadWrite, FieldNotify,
-	   Setter = SetUltimateIcon,
-	   Getter = GetUltimateIcon,
-	   meta = (AllowPrivateAccess = true))
+		Setter = SetUltimateIcon,
+		Getter = GetUltimateIcon,
+		meta = (AllowPrivateAccess = true))
 	TObjectPtr<UTexture2D> UltimateIcon = nullptr;
-	
+
 	UPROPERTY()
 	APlayerController* PlayerController;
-	
 };
+
+

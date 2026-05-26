@@ -23,6 +23,10 @@ void FBpexGameplayTags::InitializeNativeGameplayTags()
 		FName("Cooldown.Ability.TestTactical"), FString("Cooldown Tag for TestTactical Ability"));
 	Get().Cooldown_Ability_TestUltimate= UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Cooldown.Ability.TestUltimate"), FString("Cooldown Tag for TestUltimate Ability"));
+	Get().Cooldown_Ability_Ultimate= UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Cooldown.Ability.Ultimate"), FString("Cooldown Tag for Ultimate Ability"));
+	Get().Cooldown_Ability_TestUltimate= UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Cooldown.Ability.Ultimate"), FString("Cooldown Tag for Ultimate Ability"));
 
 	/*
 	* State Tags

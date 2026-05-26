@@ -128,6 +128,9 @@ void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 		UnbindWeaponAmmoDelegate(CurrentWeapon);
 		AttachWeaponToSocket(CurrentWeapon, CurrentWeapon->UnEquippedSocketName);
 		ClearCurrentWeaponAbilities();
+	}else
+	{
+		SetArmedState(true);
 	}
 	// 装备新武器
 	BindWeaponAmmoDelegate(NewWeapon);
@@ -139,7 +142,7 @@ void UCombatComponent::EquipSlotWeapon(int32 SlotIndex)
 	// 服务器本地表现
 	OnWeaponChanged.Broadcast(CurrentWeapon->WeaponType);
 	BroadcastAmmoUI();
-	SetArmedState(true);
+
 }
 
 void UCombatComponent::Holster()
