@@ -30,6 +30,7 @@ class BPEX_API UGA_Reload : public UBpexGameplayAbility
 		const FGameplayAbilityActivationInfo ActivationInfo,
 		const FGameplayEventData* TriggerEventData) override;
 
+	UFUNCTION(BlueprintCallable,Category="Weapon")
 	void PerformReload();
 
 private:

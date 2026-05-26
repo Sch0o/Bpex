@@ -6,6 +6,7 @@
 #include "InventorySystem/InventoryComponent.h"
 #include "Weapon/CombatComponent.h"
 #include "Weapon/ShooterWeapon.h"
+#include "AbilitySystemComponent.h"
 
 class AShooterWeapon;
 
@@ -13,7 +14,7 @@ UGA_Reload::UGA_Reload()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::ServerOnly;
-	
+
 	ActivationBlockedTags.AddTag(FBpexGameplayTags::Get().State_Dead);
 }
 
@@ -30,20 +31,25 @@ bool UGA_Reload::CanActivateAbility(
 	}
 	AActor* AvatarActor = ActorInfo->AvatarActor.Get();
 	if (!AvatarActor) return false;
+
+	const UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
+	const FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromHandle(Handle);
+
+	if (!Spec)
+	{
+		return false;
+	}
 	
-	UCombatComponent* CombatComp = AvatarActor->FindComponentByClass<UCombatComponent>();
-	if (!CombatComp) return false;
-	
-	AShooterWeapon* Weapon = CombatComp->GetCurrentWeapon();
-	if (!Weapon) return false;
-	
-	//弹匣已满，不需要换弹
-	if (Weapon->IsClipFull()) return false;
-	
+	AShooterWeapon* Weapon = Cast<AShooterWeapon>(Spec->SourceObject.Get());
+	if (!Weapon)
+	{
+		return false;
+	}
+
 	// 检查背包是否有对应子弹
 	UInventoryComponent* InventoryComp = AvatarActor->FindComponentByClass<UInventoryComponent>();
 	if (!InventoryComp) return false;
-	
+
 	if (InventoryComp->GetAmmoCount(Weapon->AmmoType) <= 0) return false;
 	return true;
 }
@@ -66,16 +72,9 @@ void UGA_Reload::ActivateAbility(
 	if (!CachedCombatComp || !CachedInventoryComp)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
 	}
-	// ─── 目前先不管动画，直接执行换弹 ───
-	//将来加动画时：
-	//   1. 播放换弹 Montage
-	//   2. 在Montage 的AnimNotify 或 OnCompleted 回调中调用 PerformReload()
-	//   3. 在 OnBlendOut/OnInterrupted 中CancelAbility
-	PerformReload();
-	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
+
 void UGA_Reload::PerformReload()
 {
 	if (!CachedCombatComp || !CachedInventoryComp) return;
