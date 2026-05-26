@@ -25,19 +25,7 @@ class BPEX_API UShooterViewModel : public UMVVMViewModelBase
 public:
 	UFUNCTION(BlueprintPure)
 	float GetHealthPercent() const { return HealthPercent; }
-
-	UFUNCTION(BlueprintPure)
-	FText GetClipAmmoText() const { return FText::AsNumber(ClipAmmo); }
-
-	UFUNCTION(BlueprintPure)
-	FText GetReserveAmmoText() const { return FText::AsNumber(ReserveAmmo); }
-
-	UFUNCTION(BlueprintCallable)
-	int32 GetClipAmmo() const { return ClipAmmo; }
-
-	UFUNCTION(BlueprintCallable)
-	int32 GetReserveAmmo() const { return ReserveAmmo; }
-
+	
 	UFUNCTION(BlueprintCallable)
 	void SetHealthPercent(float NewPercent);
 
@@ -56,11 +44,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void InitializeCombat(UCombatComponent* InCombat);
-
-	//初始化技能系统
-	UFUNCTION(BlueprintCallable, Category="Ability")
-	void InitializeLegendAbility(ULegendAbilityComponent* InLAC);
-
+	
 	UFUNCTION(BlueprintPure, FieldNotify)
 	bool GetIsUsingItem() const { return bIsUsingItem; }
 
@@ -92,7 +76,6 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UCooldownListener> CooldownListener = nullptr;
 
-
 	void OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount);
 
 	void HealthChanged(const FOnAttributeChangeData& Data);
@@ -117,8 +100,7 @@ protected:
 	void HandleCoolDownEnd(FGameplayTag Tag, float TimeRemaining, float Duration);
 	
 	FTimerHandle CooldownTimerHandle;
-
-	//MVVM init
+	
 	UFUNCTION(Category="Init")
 	void HandlePawnChanged(APawn* OldPawn, APawn* NewPawn);
 
@@ -131,13 +113,6 @@ private:
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetHealthPercent, Getter=GetHealthPercent,
 		meta=(AllowPrivateAccess=true))
 	float HealthPercent = 1.0f;
-
-	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetClipAmmo, Getter=GetClipAmmo, meta=(AllowPrivateAccess=true))
-	int32 ClipAmmo;
-
-	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetReserveAmmo, Getter=GetReserveAmmo,
-		meta=(AllowPrivateAccess=true))
-	int32 ReserveAmmo;
 
 	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetIsUsingItem, Getter=GetIsUsingItem,
 		meta=(AllowPrivateAccess=true))

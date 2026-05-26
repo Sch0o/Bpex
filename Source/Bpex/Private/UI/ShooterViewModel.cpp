@@ -186,49 +186,6 @@ void UShooterViewModel::InitializeCombat(UCombatComponent* InCombat)
 	CombatComponent->OnAmmoUIUpdated.AddDynamic(this, &UShooterViewModel::HandleAmmoUIUpdated);
 }
 
-void UShooterViewModel::InitializeLegendAbility(ULegendAbilityComponent* InLAC)
-{
-	if (!InLAC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::InitializeLegendAbility:: LegendAbilityComponent is null"))
-		return;
-	}
-
-	// LegendAbilityComponent = InLAC;
-	// //战术技能
-	// FAbilitySlotInfo TacticalInfo = LegendAbilityComponent->GetAbilitySlotInfo(
-	// 	EAbilitySlotType::Tactical);
-	// if (UTexture2D* Tex = TacticalInfo.Icon.LoadSynchronous())
-	// {
-	// 	SetTacticalIcon(Tex);
-	// }
-	// //终极技能
-	// FAbilitySlotInfo UltInfo = LegendAbilityComponent->GetAbilitySlotInfo(
-	// 	EAbilitySlotType::Ultimate);
-	// if (UTexture2D* Tex = UltInfo.Icon.LoadSynchronous())
-	// {
-	// 	SetUltimateIcon(Tex);
-	// }
-	// // 定时器，每帧刷新冷却/充能
-	// if (UWorld* World = GetWorld())
-	// {
-	// 	World->GetTimerManager().SetTimer(
-	// 		CooldownTimerHandle,
-	// 		this,
-	// 		&UShooterViewModel::UpdateAbilityCooldowns,
-	// 		0.05f, 
-	// 		true 
-	// 	);
-	// }
-	
-	// 初始状态
-	SetIsTacticalReady(true);
-	SetTacticalCooldownPercent(1.f);
-	SetUltimateChargePercent(0.f);
-	SetIsUltimateReady(false);
-}
-
-
 void UShooterViewModel::OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	UE_LOG(LogTemp, Log, TEXT("UShooterViewModel::OnAnyGameplayTagChange"))
