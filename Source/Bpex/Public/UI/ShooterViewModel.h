@@ -29,6 +29,18 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetHealthPercent(float NewPercent);
 
+	UFUNCTION(BlueprintPure)
+	FText GetClipAmmoText() const { return FText::AsNumber(ClipAmmo); }
+
+	UFUNCTION(BlueprintPure)
+	FText GetReserveAmmoText() const { return FText::AsNumber(ReserveAmmo); }
+
+	UFUNCTION(BlueprintCallable)
+	int32 GetClipAmmo() const { return ClipAmmo; }
+
+	UFUNCTION(BlueprintCallable)
+	int32 GetReserveAmmo() const { return ReserveAmmo; }
+	
 	UFUNCTION(BlueprintCallable)
 	void SetReserveAmmo(int32 NewMaxClipAmmo);
 
@@ -72,9 +84,7 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UCombatComponent> CombatComponent = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UCooldownListener> CooldownListener = nullptr;
+	
 
 	void OnAnyGameplayTagChanged(const FGameplayTag Tag, int32 NewCount);
 
@@ -92,12 +102,6 @@ protected:
 
 	UFUNCTION()
 	void HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount);
-
-	UFUNCTION()
-	void HandleCoolDownBegin(FGameplayTag Tag, float TimeRemaining, float Duration);
-
-	UFUNCTION()
-	void HandleCoolDownEnd(FGameplayTag Tag, float TimeRemaining, float Duration);
 	
 	FTimerHandle CooldownTimerHandle;
 	
@@ -105,6 +109,14 @@ protected:
 	void HandlePawnChanged(APawn* OldPawn, APawn* NewPawn);
 
 private:
+	
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetClipAmmo, Getter=GetClipAmmo, meta=(AllowPrivateAccess=true))
+	int32 ClipAmmo;
+
+	UPROPERTY(BlueprintReadWrite, FieldNotify, Setter=SetReserveAmmo, Getter=GetReserveAmmo,
+		meta=(AllowPrivateAccess=true))
+	int32 ReserveAmmo;
+
 	
 	FGameplayTag TacticalCooldownTag;
 	

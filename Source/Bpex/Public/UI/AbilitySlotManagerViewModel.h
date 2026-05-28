@@ -9,28 +9,37 @@
 
 class UAbilitySlotViewModel;
 struct FGameplayTag;
-/**
- * 
- */
+
+
+USTRUCT(BlueprintType)
+struct FAbilitySlotMapping
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FGameplayTag CooldownTag;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TObjectPtr<UAbilitySlotViewModel> SlotViewModel = nullptr;
+};
+
 UCLASS(BlueprintType)
 class BPEX_API UAbilitySlotManagerViewModel : public UMVVMViewModelBase
 {
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable)
-	void Initialize(UAbilitySystemComponent* InASC, const FGameplayTagContainer& InCooldownTags,
-	                bool bUseServerCooldown);
 
-	UFUNCTION()
-	UAbilitySlotViewModel* GetSlotByTag(FGameplayTag Tag) const;
+	UFUNCTION(BlueprintCallable, Category = "Cooldown")
+	void Initialize(
+		UAbilitySystemComponent* InASC,
+		const TArray<FAbilitySlotMapping>& InSlotMappings,
+		bool bUseServerCooldown);
 
 private:
 	UPROPERTY()
 	TMap<FGameplayTag, TObjectPtr<UAbilitySlotViewModel>> TagToSlotMap;
 
 	UPROPERTY()
-	TObjectPtr<UCooldownListener> CooldownLister;
+	TObjectPtr<UCooldownListener> CooldownListener;
 
 	void HandleCooldownBegin(FGameplayTag Tag, float TimeRemaining, float Duration);
 

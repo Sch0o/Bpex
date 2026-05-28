@@ -39,13 +39,13 @@ bool UGA_Reload::CanActivateAbility(
 	{
 		return false;
 	}
-	
+
 	AShooterWeapon* Weapon = Cast<AShooterWeapon>(Spec->SourceObject.Get());
-	if (!Weapon)
+	if (!Weapon || Weapon->IsClipFull())
 	{
 		return false;
 	}
-
+	
 	// 检查背包是否有对应子弹
 	UInventoryComponent* InventoryComp = AvatarActor->FindComponentByClass<UInventoryComponent>();
 	if (!InventoryComp) return false;

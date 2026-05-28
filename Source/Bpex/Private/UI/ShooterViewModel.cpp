@@ -8,8 +8,6 @@
 #include "BpexGameplayTags.h"
 #include "AbilitySystem/BpexAttributeSet.h"
 #include "Weapon/CombatComponent.h"
-#include "AbilitySystem/LegendAbilityComponent.h"
-#include "AbilitySystem/Ability/CooldownListener.h"
 #include "InventorySystem/InventoryComponent.h"
 
 
@@ -18,14 +16,9 @@ void UShooterViewModel::SetHealthPercent(float NewPercent)
 	UE_MVVM_SET_PROPERTY_VALUE(HealthPercent, NewPercent);
 }
 
-void UShooterViewModel::SetReserveAmmo(int32 NewReserveAmmo)
+void UShooterViewModel::SetReserveAmmo(int32 NewReserverAmmo)
 {
-	UE_MVVM_SET_PROPERTY_VALUE(ReserveAmmo, NewReserveAmmo);
-}
-
-void UShooterViewModel::SetIsUsingItem(bool bNewState)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(bIsUsingItem, bNewState);
+	UE_MVVM_SET_PROPERTY_VALUE(ReserveAmmo, NewReserverAmmo);
 }
 
 void UShooterViewModel::SetClipAmmo(int32 NewClipAmmo)
@@ -33,54 +26,14 @@ void UShooterViewModel::SetClipAmmo(int32 NewClipAmmo)
 	UE_MVVM_SET_PROPERTY_VALUE(ClipAmmo, NewClipAmmo);
 }
 
+void UShooterViewModel::SetIsUsingItem(bool bNewState)
+{
+	UE_MVVM_SET_PROPERTY_VALUE(bIsUsingItem, bNewState);
+}
+
 void UShooterViewModel::SetCurrentUseDuration(float NewDuration)
 {
 	UE_MVVM_SET_PROPERTY_VALUE(CurrentUseDuration, NewDuration);
-}
-
-void UShooterViewModel::SetTacticalCooldownPercent(float NewPercent)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(TacticalCooldownPercent, NewPercent);
-}
-
-void UShooterViewModel::SetTacticalCooldownRemaining(float NewRemaining)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(TacticalCooldownRemaining, NewRemaining);
-}
-
-void UShooterViewModel::SetIsTacticalReady(bool bNewReady)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(bIsTacticalReady, bNewReady);
-}
-
-FText UShooterViewModel::GetTacticalCooldownText() const
-{
-	return FText();
-}
-
-void UShooterViewModel::SetUltimateChargePercent(float NewPercent)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(UltimateChargePercent, NewPercent);
-}
-
-void UShooterViewModel::SetIsUltimateReady(bool bNewReady)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(bIsUltimateReady, bNewReady);
-}
-
-FText UShooterViewModel::GetUltimateChargeText() const
-{
-	return FText();
-}
-
-void UShooterViewModel::SetTacticalIcon(UTexture2D* NewIcon)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(TacticalIcon, NewIcon);
-}
-
-void UShooterViewModel::SetUltimateIcon(UTexture2D* NewIcon)
-{
-	UE_MVVM_SET_PROPERTY_VALUE(UltimateIcon, NewIcon);
 }
 
 void UShooterViewModel::InitializeViewModel(APlayerController* PC)
@@ -98,14 +51,6 @@ void UShooterViewModel::InitializeViewModel(APlayerController* PC)
 		HandlePawnChanged(nullptr, CurrentPawn);
 	}
 	
-	
-	FGameplayTagContainer CooldownTags;
-	CooldownTags.AddTag(FBpexGameplayTags::Get().Cooldown_Ability_Tactical);
-	CooldownTags.AddTag(FBpexGameplayTags::Get().Cooldown_Ability_Ultimate);
-	
-	CooldownListener = NewObject<UCooldownListener>(this);
-	CooldownListener->StartListening(ASC,CooldownTags,true);
-	
 }
 
 void UShooterViewModel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn)
@@ -114,13 +59,6 @@ void UShooterViewModel::HandlePawnChanged(APawn* OldPawn, APawn* NewPawn)
 	{
 		UE_LOG(LogTemp, Log, TEXT("UShooterViewModel::HandlePawnChanged:: NewPawn is null"));
 		return;
-	}
-	if (ULegendAbilityComponent* AbilityComp = NewPawn->FindComponentByClass<ULegendAbilityComponent>())
-	{
-		InitializeLegendAbility(AbilityComp);
-	}else
-	{
-		UE_LOG(LogTemp, Error, TEXT("UShooterViewModel::HandlePawnChanged:: LegendAbilityComponent is null"));
 	}
 	if (UInventoryComponent* InventoryComp = NewPawn->FindComponentByClass<UInventoryComponent>())
 	{
@@ -241,13 +179,3 @@ void UShooterViewModel::HandleAmmoChanged(EAmmoType AmmoType, int32 NewCount)
 	}
 }
 
-
-void UShooterViewModel::HandleCoolDownEnd(FGameplayTag Tag, float TimeRemaining, float Duration)
-{
-	if (Tag.MatchesTagExact())
-}
-
-void UShooterViewModel::HandleCoolDownBegin(FGameplayTag Tag, float TimeRemaining, float Duration)
-{
-	
-}

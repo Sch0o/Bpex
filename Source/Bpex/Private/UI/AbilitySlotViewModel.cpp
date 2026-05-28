@@ -3,44 +3,55 @@
 
 #include "UI/AbilitySlotViewModel.h"
 
-void UAbilitySlotViewModel::StartCooldown(UWorld* World, float InTimeRemaining, float InDuration)
+void UAbilitySlotViewModel::SetCooldownTag(FGameplayTag Tag)
+{
+	CooldownTag = Tag;
+}
+
+void UAbilitySlotViewModel::StartCooldown(float InTimeRemaining ,float Duration)
 {
 	
-	UE_MVVM_SET_PROPERTY_VALUE(bIsOnCooldown, true);
+	TotalDuration = Duration;
+	TimeRemaining = InTimeRemaining;
 	
-	if (InTimeRemaining <= 0.f)
-	{
-		UE_MVVM_SET_PROPERTY_VALUE(Fraction, 1.f);
-		UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::GetEmpty());
-	}else
-	{
-		UE_MVVM_SET_PROPERTY_VALUE(Duration, InDuration);
-		UE_MVVM_SET_PROPERTY_VALUE(TimeRemaining, InTimeRemaining);
-		FString TimeStr = FString::Printf(TEXT("%.1fs"), InTimeRemaining);
-		UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::FromString(TimeStr));
-	}
-	
-	if (InDuration > 0.f)
-	{
-		UE_MVVM_SET_PROPERTY_VALUE(Fraction, InTimeRemaining / InDuration);
-	}
-	
-	CachedWorld = World;
-	if (!World) return;
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownFraction,0.f);
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownVisibility, ESlateVisibility::HitTestInvisible);
+	UE_MVVM_SET_PROPERTY_VALUE(IconTint, FLinearColor(0.3f, 0.3f, 0.3f, 1.f));
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::AsNumber(FMath::CeilToInt(Duration)));
+
 	StopTimer();
-	World->GetTimerManager().SetTimer(
-		TimerHandle,
-		this,
-		&UAbilitySlotViewModel::TickCooldown,
-		TickInterval,
-		true
-	);
+
+	if (CachedWorld.IsValid())
+	{
+		CachedWorld->GetTimerManager().SetTimer(
+			TimerHandle,
+			this,
+			&UAbilitySlotViewModel::TickCooldown,
+			TickInterval,
+			true
+		);
+	}
+}
+
+void UAbilitySlotViewModel::EndCooldown()
+{
+	StopTimer();
+	
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownFraction, 0.f);
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::GetEmpty());
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownVisibility, ESlateVisibility::Collapsed);
+	UE_MVVM_SET_PROPERTY_VALUE(IconTint, FLinearColor::White);
+}
+
+void UAbilitySlotViewModel::SetWorldContext(UWorld* World)
+{
+	CachedWorld = World;
 }
 
 void UAbilitySlotViewModel::StopTimer()
 {
 	UWorld* World = CachedWorld.Get();
-	if (World&&TimerHandle.IsValid())
+	if (World && TimerHandle.IsValid())
 	{
 		World->GetTimerManager().ClearTimer(TimerHandle);
 	}
@@ -48,24 +59,27 @@ void UAbilitySlotViewModel::StopTimer()
 
 void UAbilitySlotViewModel::TickCooldown()
 {
-	
-	float NewTime = FMath::Max(0.f, TimeRemaining - TickInterval);
-	UE_MVVM_SET_PROPERTY_VALUE(TimeRemaining, NewTime);
-	
-	if (Duration > 0.f)
+	TimeRemaining -= 0.1f;
+	if (TimeRemaining <= 0.f)
 	{
-		UE_MVVM_SET_PROPERTY_VALUE(Fraction, NewTime / Duration);
+		EndCooldown();
+		return;
 	}
-	FString TimeStr = FString::Printf(TEXT("%.1fs"), NewTime);
-	UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::FromString(TimeStr));
 	
-	if (NewTime <= 0.f)
+	float Fraction = TimeRemaining / TotalDuration;
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownFraction, 1 - Fraction);
+
+	FText Text;
+	if (TimeRemaining > 1.f)
 	{
-		StopTimer();
-		UE_MVVM_SET_PROPERTY_VALUE(TimeRemaining, 0.f);
-		UE_MVVM_SET_PROPERTY_VALUE(Duration, 0.f);
-		UE_MVVM_SET_PROPERTY_VALUE(Fraction, 0.f);
-		UE_MVVM_SET_PROPERTY_VALUE(bIsOnCooldown, false);
-		UE_MVVM_SET_PROPERTY_VALUE(CooldownText, FText::GetEmpty());
+		Text = FText::AsNumber(FMath::CeilToInt(TimeRemaining));
 	}
+	else
+	{
+		FNumberFormattingOptions Opts;
+		Opts.MaximumFractionalDigits = 1;
+		Opts.MinimumFractionalDigits = 1;
+		Text = FText::AsNumber(TimeRemaining, &Opts);
+	}
+	UE_MVVM_SET_PROPERTY_VALUE(CooldownText, Text);
 }
